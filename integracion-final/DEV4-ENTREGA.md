@@ -1,5 +1,7 @@
 # Dev 4 — entrega para Juan Carlos
 
+> **Actualización 2026-09-12:** ElevenLabs ya se verificó con una cuenta real (ver sección "ElevenLabs" más abajo y `CAMBIOS-Y-VALIDACION.md`). El resto de este documento describe el estado en el momento de esta entrega y se conserva sin cambios.
+
 Esta carpeta reúne Dev 1–4. Auditoría SQLite y demo web funcionan localmente. Los adaptadores ElevenLabs y PostgreSQL/Tiger Data están implementados y probados con simulaciones; falta conectarlos con cuentas reales. Gemini también sigue pendiente de credenciales. No hay despliegue público todavía.
 
 ## Arranque
@@ -51,6 +53,17 @@ El botón del panel genera manualmente un MP3 y permite reproducirlo. Cada gener
 Texto completo: “Atención. Se detectaron señales de voz sintética. Solicita una verificación adicional de identidad antes de continuar. Esta alerta no confirma fraude.”
 
 Referencia del proveedor: https://elevenlabs.io/docs/api-reference/text-to-speech/convert
+
+### Actualización: verificación con cuenta real (2026-09-12)
+
+Se generó un MP3 real (ID3 v2.4.0, MPEG layer III, 128 kbps, 44.1 kHz, ~188 KB) usando `POST /voice/alert` contra la API real de ElevenLabs, con una cuenta y API key personales del equipo. Detalles en `CAMBIOS-Y-VALIDACION.md`. Puntos a tener en cuenta para quien conecte una cuenta nueva:
+
+- Al crear una API key en ElevenLabs, el dashboard muestra un **ID** de la key junto a la key secreta; solo la secreta (siempre empieza con `sk_`) sirve como `ELEVENLABS_API_KEY`. Usar el ID da 401 con `"status":"api_key_id_used_as_api_key"`.
+- Las API keys de ElevenLabs pueden crearse con permisos restringidos. Si falta el permiso de *Text to Speech*, la API responde 401 con `"status":"missing_permissions"` aunque la key sea válida.
+- Cuentas **Free Tier** no pueden usar voces de la librería pública vía API (`"status":"payment_required"`, código `paid_plan_required`) — hay que agregar la voz a "My Voices" o clonar una propia; incluso así, algunas funciones de voz siguen limitadas a planes de pago.
+- ElevenLabs puede marcar una cuenta con `"status":"detected_unusual_activity"` (401) tras varios intentos seguidos o uso de VPN/proxy; la restricción se puede levantar sola después de un rato sin cambiar nada de la configuración.
+
+Ninguno de estos casos requirió cambios en `dev4/voice.py`: el adaptador ya devolvía la razón correcta (`provider_http_401`/`402`) para cada uno. La causa exacta solo se pudo ver agregando temporalmente un log de depuración (no incluido en la entrega final) que imprimía el cuerpo de la respuesta del proveedor en la terminal del servidor, nunca en la respuesta HTTP al cliente.
 
 ## PostgreSQL / Tiger Data
 

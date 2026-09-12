@@ -67,6 +67,21 @@ Con el servidor corriendo localmente (`MODEL_VARIANT=baseline`, sin credenciales
 
 Esta verificación manual usó WAV **sintéticos** generados en `work/gen_synth_wav.py` (senoides con ruido, no habla real) porque el dataset oficial no está disponible en este entorno. Sirven para probar formato, límites y comportamiento del servidor — **no para afirmar exactitud de clasificación**, que solo puede medirse con el dataset oficial o el benchmark oculto de Altur.
 
+## ElevenLabs: verificación con cuenta real (2026-09-12)
+
+A diferencia del resto de esta revisión, esta parte sí se probó con una cuenta y credenciales reales del equipo (nunca vistas ni manejadas por el asistente; el usuario las configuró directamente en su propia terminal como variables de entorno). Resultado final: `POST /voice/alert` devolvió `200` con un MP3 real y válido (ID3 v2.4.0, MPEG layer III, 128 kbps, 44.1 kHz, ~188 KB), generado por la API real de ElevenLabs a partir del texto fijo de alerta.
+
+El camino hasta llegar ahí pasó por cuatro causas de error distintas, cada una diagnosticada leyendo la razón que ya devuelve `dev4/voice.py` (y, cuando la razón agregada no bastaba, con un `print` de depuración temporal agregado solo para esta sesión de trabajo, que imprimía el cuerpo de la respuesta del proveedor únicamente en la terminal del servidor — nunca en la respuesta HTTP al cliente — y que ya se quitó del código antes de este commit):
+
+1. **`provider_http_401`, `"status":"api_key_id_used_as_api_key"`** — se usó el *ID* de la API key (visible en la tabla del dashboard de ElevenLabs) en vez de la key secreta real (que siempre empieza con `sk_`).
+2. **`provider_http_401`, `"status":"missing_permissions"`** — una key con formato correcto pero creada con permisos restringidos, sin el scope de *Text to Speech* habilitado.
+3. **`provider_http_401`, `"status":"detected_unusual_activity"`** — ElevenLabs deshabilitó el acceso Free Tier de la cuenta por "actividad inusual" (su sistema antiabuso; puede activarse por VPN/proxy o por varios intentos seguidos). Se resolvió solo, sin cambiar nada, después de un rato.
+4. **`provider_http_402`, `"status":"payment_required"`, código `paid_plan_required`** — cuentas Free Tier no pueden usar voces de la librería pública de ElevenLabs vía API. Se resolvió agregando una voz a "My Voices" en el dashboard y usando ese Voice ID.
+
+En ningún momento hizo falta cambiar `dev4/voice.py`: el adaptador ya distinguía y exponía correctamente cada código de estado (`provider_http_401`/`402`, con `retryable` correcto) desde antes de esta sesión. El diagnóstico fue enteramente de configuración de cuenta, no de código. Ver también la nota de actualización en `DEV4-ENTREGA.md`.
+
+**Qué significa esto para el estado del proyecto:** `dev4/voice.py` deja de ser "solo probado con mocks" y pasa a tener una verificación end-to-end real, aunque puntual (una sola cuenta, una sola vez, no automatizada en CI). `status()` sigue devolviendo `live_verified: false` siempre por diseño — esa bandera describe si el proceso actual ya confirmó el proveedor en esta ejecución, no si alguna vez funcionó; no se cambió ese comportamiento.
+
 ## Qué no se validó en esta fase (y por qué)
 
 | Área | Motivo |
@@ -75,6 +90,5 @@ Esta verificación manual usó WAV **sintéticos** generados en `work/gen_synth_
 | Reentrenamiento con `latency_frac_negative` corregido | Requiere dataset oficial |
 | Build/despliegue Docker en Linux | Docker no instalado en este entorno |
 | Gemini con cuenta real | Decisión expresa del usuario: pendiente |
-| ElevenLabs con cuenta real | Sin credenciales disponibles |
 | PostgreSQL/Tiger Data con base real | Sin credenciales disponibles |
 | Despliegue público / HTTPS / Vultr | Fuera de alcance de esta revisión, no solicitado |

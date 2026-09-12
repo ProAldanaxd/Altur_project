@@ -1,0 +1,63 @@
+{
+  "train_n": 282,
+  "val_n": 71,
+  "feature_count": 87,
+  "sklearn_version": "1.6.1",
+  "official_turns_validation": {
+    "n": 71,
+    "accuracy": 0.971830985915493,
+    "balanced_accuracy": 0.972972972972973,
+    "roc_auc": 1.0,
+    "brier": 0.026577594910232198,
+    "confusion_matrix_rows_human_synthetic": [
+      [
+        35,
+        2
+      ],
+      [
+        0,
+        34
+      ]
+    ]
+  },
+  "official_trained_model_on_audio_validation": {
+    "n": 71,
+    "accuracy": 0.8732394366197183,
+    "balanced_accuracy": 0.8771860095389508,
+    "roc_auc": 0.9634340222575517,
+    "brier": 0.11549073955472272,
+    "confusion_matrix_rows_human_synthetic": [
+      [
+        29,
+        8
+      ],
+      [
+        1,
+        33
+      ]
+    ]
+  },
+  "audio_trained_model_on_audio_validation": {
+    "n": 71,
+    "accuracy": 0.9436619718309859,
+    "balanced_accuracy": 0.9447535771065183,
+    "roc_auc": 0.9809220985691574,
+    "brier": 0.049939205811376085,
+    "confusion_matrix_rows_human_synthetic": [
+      [
+        34,
+        3
+      ],
+      [
+        1,
+        33
+      ]
+    ]
+  },
+  "feature_extraction_mean_ms": 66.24859631709259,
+  "feature_extraction_p95_ms": 90.1608199972543,
+  "training_source": "audio_vad",
+  "trained_split": "train",
+  "latency_pairing": "signed_v2",
+  "notes": "Mismo ensemble y VAD de Dev 2; sin ajuste en val. No es evaluaci\u00f3n oculta ni medida de red."
+}

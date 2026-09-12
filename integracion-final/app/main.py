@@ -227,4 +227,6 @@ def voice_alert(payload: VoiceRequest):
 
 @app.get("/demo", response_class=HTMLResponse)
 def demo_page():
-    return (Path(__file__).resolve().parents[1] / "dev4/demo.html").read_text()
+    # read_text() sin encoding usa la codificación local del sistema (cp1252 en
+    # Windows), lo que corrompe los acentos UTF-8 del HTML. Forzar utf-8 explícito.
+    return (Path(__file__).resolve().parents[1] / "dev4/demo.html").read_text(encoding="utf-8")

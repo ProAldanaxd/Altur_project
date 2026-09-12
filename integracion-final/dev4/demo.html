@@ -1,17 +1,234 @@
 <!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Altur · Auditoría de llamadas</title>
-<style>body{font-family:system-ui,sans-serif;background:#101a25;color:#eff6fa;max-width:1100px;margin:40px auto;padding:0 24px}h1{font-size:40px;margin-bottom:8px}p{color:#aabdc9}section{margin:28px 0;padding:24px;background:#1b2937;border-radius:12px}button,input{font:inherit;padding:10px;margin:6px 8px 6px 0;border-radius:6px;border:1px solid #7895a7}button{cursor:pointer;background:#7ee8c2;color:#102321;font-weight:650}button:disabled{opacity:.45;cursor:default}table{border-collapse:collapse;width:100%;font-size:14px}td,th{text-align:left;padding:12px 8px;border-bottom:1px solid #334958}#result{font-size:25px;color:#7ee8c2}small{color:#aabdc9}.scroll{overflow:auto}.metrics{display:flex;gap:40px;flex-wrap:wrap}.metrics strong{display:block;font-size:30px}audio{width:100%;margin-top:12px}</style>
+<style>
+body{font-family:system-ui,sans-serif;background:#101a25;color:#eff6fa;max-width:1100px;margin:40px auto;padding:0 24px}
+h1{font-size:40px;margin-bottom:8px}
+h2{margin-top:0}
+p{color:#aabdc9}
+section{margin:28px 0;padding:24px;background:#1b2937;border-radius:12px}
+button,input{font:inherit;padding:10px;margin:6px 8px 6px 0;border-radius:6px;border:1px solid #7895a7}
+button{cursor:pointer;background:#7ee8c2;color:#102321;font-weight:650}
+button.secondary{background:transparent;color:#7ee8c2;border:1px solid #3a5266}
+button:disabled{opacity:.45;cursor:default}
+table{border-collapse:collapse;width:100%;font-size:14px}
+td,th{text-align:left;padding:12px 8px;border-bottom:1px solid #334958}
+small{color:#aabdc9}
+.scroll{overflow:auto}
+.metrics{display:flex;gap:28px;flex-wrap:wrap}
+.metrics div{min-width:120px}
+.metrics strong{display:block;font-size:26px}
+audio{width:100%;margin-top:12px}
+.legend{display:flex;gap:20px;font-size:13px;color:#aabdc9;margin:8px 0}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:12px;height:12px;border-radius:3px;display:inline-block}
+#timelineWrap{background:#101a25;border-radius:8px;padding:10px 0}
+ul.notes{margin:8px 0 0;padding-left:20px;color:#aabdc9;font-size:13px}
+ul.notes li{margin:4px 0}
+#verdictCard{margin-top:16px}
+.badge{font-size:26px;font-weight:700;padding:14px 20px;border-radius:10px;display:inline-block;margin-bottom:14px}
+.badge.human{background:#173327;color:#7ee8c2}
+.badge.synthetic{background:#3a2312;color:#ffb454}
+.keyparams strong{font-size:20px}
+</style>
 <h1>Auditoría de llamadas</h1><p>Reto Altur · Demo local del equipo</p>
-<section><label>Token de operador, si está configurado<br><input id="token" type="password" autocomplete="off" placeholder="Solo permanece en esta página"></label><button id="refresh">Actualizar registros</button><p id="status" role="status">Cargando estado…</p></section>
-<section><h2>Analizar un WAV</h2><p>Estéreo PCM16, 8 kHz. Cliente en canal 0, agente en canal 1.</p><input id="file" type="file" accept=".wav,audio/wav"><button id="detect">Analizar llamada</button><div id="result" role="status"></div><p id="detail"></p></section>
-<section><h2>Alerta de voz para el agente</h2><p>“Se detectaron señales de voz sintética. Solicita una verificación adicional de identidad.”</p><p>La alerta no confirma fraude y no llama a ningún teléfono.</p><button id="voice" disabled>Generar alerta con ElevenLabs</button><small id="voiceStatus"></small><audio id="audio" controls hidden></audio></section>
-<section><h2>Registros persistidos</h2><div class="metrics"><div>Total<strong id="total">0</strong></div><div>Sintético<strong id="synth">0</strong></div><div>Humano<strong id="human">0</strong></div></div><p id="queue"></p><div class="scroll"><table><thead><tr><th>Hora UTC</th><th>Solicitud</th><th>Resultado</th><th>P(sintético)</th><th>ms internos</th><th>Modelo</th></tr></thead><tbody id="rows"></tbody></table></div><p>La probabilidad del modelo no es confianza calibrada ni prueba de fraude.</p></section>
+
+<section>
+  <label>Token de operador, si está configurado<br><input id="token" type="password" autocomplete="off" placeholder="Solo permanece en esta página"></label>
+  <button id="refresh">Actualizar registros</button>
+  <p id="status" role="status">Cargando estado…</p>
+</section>
+
+<section>
+  <h2>Analizar un WAV</h2>
+  <p>Estéreo PCM16, 8 kHz. Cliente en canal 0, agente en canal 1.</p>
+  <input id="file" type="file" accept=".wav,audio/wav">
+  <button id="detect">Analizar llamada</button>
+
+  <div id="verdictCard" hidden>
+    <div id="result" role="status" class="badge"></div>
+    <div class="metrics keyparams" id="keyParams"></div>
+    <p id="detail"></p>
+    <button class="secondary" id="toggleTemporal">Ver más datos</button>
+  </div>
+</section>
+
+<section id="temporal" hidden>
+  <h2>Análisis temporal (Dev 3)</h2>
+  <p>Actividad de voz por canal, no una transcripción ni un juicio semántico. Un solapamiento o una latencia no demuestran por sí solos síntesis, engaño ni intención.</p>
+  <p id="temporalStatus" role="status"></p>
+  <div id="temporalBody" hidden>
+    <div class="legend">
+      <span><i class="dot" style="background:#7ee8c2"></i>Cliente (canal 0)</span>
+      <span><i class="dot" style="background:#7fb3ff"></i>Agente (canal 1)</span>
+      <span><i class="dot" style="background:#ffb454"></i>Solapamiento</span>
+    </div>
+    <div id="timelineWrap"><div id="temporalSvg"></div></div>
+    <div class="metrics" id="tMetrics" style="margin-top:16px"></div>
+    <ul class="notes" id="temporalNotes"></ul>
+  </div>
+</section>
+
+<section>
+  <h2>Alerta de voz para el agente</h2>
+  <p>"Se detectaron señales de voz sintética. Solicita una verificación adicional de identidad."</p>
+  <p>La alerta no confirma fraude y no llama a ningún teléfono.</p>
+  <button id="voice" disabled>Generar alerta con ElevenLabs</button>
+  <small id="voiceStatus"></small>
+  <audio id="audio" controls hidden></audio>
+</section>
+
+<section>
+  <h2>Registros persistidos</h2>
+  <div class="metrics"><div>Total<strong id="total">0</strong></div><div>Sintético<strong id="synth">0</strong></div><div>Humano<strong id="human">0</strong></div></div>
+  <p id="queue"></p>
+  <div class="scroll"><table><thead><tr><th>Hora UTC</th><th>Solicitud</th><th>Resultado</th><th>P(sintético)</th><th>ms internos</th><th>Modelo</th></tr></thead><tbody id="rows"></tbody></table></div>
+  <p>La probabilidad del modelo no es confianza calibrada ni prueba de fraude.</p>
+</section>
+
 <script>
-const el=id=>document.getElementById(id);let audioURL;let voiceBusy=false;
+const el=id=>document.getElementById(id);
+let audioURL,voiceBusy=false,lastTemporal=null;
+
 function headers(){const token=el('token').value;return token?{'Authorization':'Bearer '+token}:{}}
-async function refresh(){try{const [s,c,v]=await Promise.all(['/audit/stats','/audit/calls?limit=20','/voice/status'].map(p=>fetch(p,{headers:headers()})));if(!s.ok||!c.ok||!v.ok)throw Error('Acceso de operador pendiente. Comprueba el token.');const stats=await s.json(),calls=await c.json(),voice=await v.json();el('total').textContent=stats.persisted.total||0;el('synth').textContent=stats.persisted.synthetic||0;el('human').textContent=stats.persisted.human||0;el('queue').textContent=`Pendientes: ${stats.pending}. Descartados: ${stats.process_queue.dropped}. Errores de escritura: ${stats.process_queue.write_errors}.`;el('rows').replaceChildren();for(const row of calls.calls){const tr=document.createElement('tr');for(const value of [row.created_at.slice(11,19),row.request_id.slice(0,8),row.status_code===200?(row.is_synthetic?'Revisar identidad':'Humano según modelo'):`Error ${row.status_code}`,row.p_synthetic===null?'—':Number(row.p_synthetic).toFixed(3),Number(row.latency_ms).toFixed(1),row.model_variant]){const td=document.createElement('td');td.textContent=value;tr.append(td)}el('rows').append(tr)}if(!voiceBusy)el('voice').disabled=voice.status!=='configured';el('voiceStatus').textContent=voice.status==='configured'?'Proveedor configurado; generación manual.':'Pendiente: '+voice.reason;el('status').textContent='Registros locales disponibles. La persistencia ocurre en segundo plano.'}catch(e){el('status').textContent=e.message}}
+
+function pct(x){return x==null?'—':(x*100).toFixed(1)+'%'}
+function secs(x){return x==null?'—':x.toFixed(2)+' s'}
+
+function keyParamRow(label,value){
+  const div=document.createElement('div');
+  const strong=document.createElement('strong');strong.textContent=value;
+  div.append(label,strong);
+  return div;
+}
+
+// SVG de las dos pistas (cliente/agente) a escala del tiempo real de la llamada.
+// Solo dibuja números que ya calculó el backend (start/end en segundos); no
+// interpreta ni etiqueta el contenido de la conversación.
+function timelineSVG(temporal){
+  const W=900,H=110,PAD=10;
+  const dur=Math.max(temporal.duration_s,0.001);
+  const x=s=>PAD+(s/dur)*(W-2*PAD);
+  const bar=(t,y,h,color)=>`<rect x="${x(t.start).toFixed(1)}" y="${y}" width="${Math.max(x(t.end)-x(t.start),1).toFixed(1)}" height="${h}" rx="3" fill="${color}"/>`;
+  const clientBars=temporal.turns.filter(t=>t.channel===0).map(t=>bar(t,16,20,'#7ee8c2')).join('');
+  const agentBars=temporal.turns.filter(t=>t.channel===1).map(t=>bar(t,64,20,'#7fb3ff')).join('');
+  const overlapBars=(temporal.events.overlaps||[]).map(o=>bar(o,40,8,'#ffb454')).join('');
+  const ticks=[0,dur/2,dur].map(s=>`<text x="${x(s).toFixed(1)}" y="${H-4}" fill="#5f7889" font-size="10" text-anchor="middle">${s.toFixed(1)}s</text>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="Línea de tiempo de actividad de voz">
+    <text x="${PAD}" y="12" fill="#aabdc9" font-size="11">Cliente</text>${clientBars}
+    ${overlapBars}
+    <text x="${PAD}" y="60" fill="#aabdc9" font-size="11">Agente</text>${agentBars}
+    ${ticks}
+  </svg>`;
+}
+
+// Trae el análisis temporal y lo deja listo (oculto) para cuando el usuario
+// presione "Ver más datos". No decide el veredicto ni se muestra solo.
+async function loadTemporal(audioBase64){
+  el('temporal').hidden=false;
+  el('temporalBody').hidden=true;
+  el('temporalStatus').textContent='Analizando pausas y solapamientos…';
+  lastTemporal=null;
+  try{
+    const r=await fetch('/conversation/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({audio:audioBase64})});
+    const body=await r.json();
+    if(!r.ok){el('temporalStatus').textContent='Análisis temporal no disponible: '+(body.detail||r.status);return}
+    const t=body.temporal,s=t.summary;
+    lastTemporal=t;
+    el('temporalSvg').innerHTML=timelineSVG(t);
+    el('tMetrics').replaceChildren();
+    const rows=[['Turnos cliente',s.client_turn_count],['Turnos agente',s.agent_turn_count],
+      ['% habla cliente',pct(s.client_speech_ratio)],['% habla agente',pct(s.agent_speech_ratio)],
+      ['% silencio',pct(s.dead_air_ratio)],
+      ['Respuestas detectadas',s.response_latency.count],['Latencia media respuesta',secs(s.response_latency.mean_s)],
+      ['% latencias negativas',pct(s.response_negative_fraction)]];
+    for(const [label,value] of rows)el('tMetrics').append(keyParamRow(label,value));
+    el('temporalNotes').replaceChildren();
+    for(const note of t.quality.notes){const li=document.createElement('li');li.textContent=note;el('temporalNotes').append(li)}
+    el('temporalStatus').textContent='';
+    el('temporalBody').hidden=false;
+  }catch(e){el('temporalStatus').textContent=e.message}
+}
+
+el('toggleTemporal').onclick=()=>{
+  const willShow=el('temporal').hidden;
+  el('temporal').hidden=!willShow;
+  el('toggleTemporal').textContent=willShow?'Ocultar datos':'Ver más datos';
+  if(willShow)el('temporal').scrollIntoView({behavior:'smooth',block:'start'});
+};
+
+async function refresh(){
+  try{
+    const [s,c,v]=await Promise.all(['/audit/stats','/audit/calls?limit=20','/voice/status'].map(p=>fetch(p,{headers:headers()})));
+    if(!s.ok||!c.ok||!v.ok)throw Error('Acceso de operador pendiente. Comprueba el token.');
+    const stats=await s.json(),calls=await c.json(),voice=await v.json();
+    el('total').textContent=stats.persisted.total||0;
+    el('synth').textContent=stats.persisted.synthetic||0;
+    el('human').textContent=stats.persisted.human||0;
+    el('queue').textContent=`Pendientes: ${stats.pending}. Descartados: ${stats.process_queue.dropped}. Errores de escritura: ${stats.process_queue.write_errors}.`;
+    el('rows').replaceChildren();
+    for(const row of calls.calls){
+      const tr=document.createElement('tr');
+      for(const value of [row.created_at.slice(11,19),row.request_id.slice(0,8),row.status_code===200?(row.is_synthetic?'Revisar identidad':'Humano según modelo'):`Error ${row.status_code}`,row.p_synthetic===null?'—':Number(row.p_synthetic).toFixed(3),Number(row.latency_ms).toFixed(1),row.model_variant]){
+        const td=document.createElement('td');td.textContent=value;tr.append(td)
+      }
+      el('rows').append(tr)
+    }
+    if(!voiceBusy)el('voice').disabled=voice.status!=='configured';
+    el('voiceStatus').textContent=voice.status==='configured'?'Proveedor configurado; generación manual.':'Pendiente: '+voice.reason;
+    el('status').textContent='Registros locales disponibles. La persistencia ocurre en segundo plano.';
+  }catch(e){el('status').textContent=e.message}
+}
 el('refresh').onclick=refresh;
-el('detect').onclick=async()=>{const f=el('file').files[0];if(!f){el('result').textContent='Selecciona un WAV.';return}if(f.size>12*1024*1024){el('result').textContent='El WAV supera 12 MiB.';return}el('detect').disabled=true;try{const data=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result.split(',')[1]);r.onerror=reject;r.readAsDataURL(f)});const start=performance.now();const r=await fetch('/detect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({audio:data})});const body=await r.json();if(!r.ok)throw Error(`HTTP ${r.status}: ${JSON.stringify(body.detail)}`);el('result').textContent=body.is_synthetic?'Revisar identidad: señales de voz sintética':'Voz humana según el modelo';el('detail').textContent=`Respuesta local: ${(performance.now()-start).toFixed(0)} ms. Solicitud: ${r.headers.get('X-Request-ID')}. El resultado puede equivocarse.`;await refresh()}catch(e){el('result').textContent=e.message}finally{el('detect').disabled=false}};
-el('voice').onclick=async()=>{voiceBusy=true;el('voice').disabled=true;try{const r=await fetch('/voice/alert',{method:'POST',headers:{...headers(),'Content-Type':'application/json'},body:JSON.stringify({demo:true})});if(!r.ok)throw Error('No se pudo generar audio. Revisa /voice/status y la configuración del proveedor.');if(audioURL)URL.revokeObjectURL(audioURL);audioURL=URL.createObjectURL(await r.blob());el('audio').src=audioURL;el('audio').hidden=false;el('voiceStatus').textContent='Audio generado. Presiona reproducir.'}catch(e){el('voiceStatus').textContent=e.message}finally{voiceBusy=false;el('voice').disabled=false}};
-refresh();setInterval(()=>{if(!document.hidden)refresh()},3000);
+
+el('detect').onclick=async()=>{
+  const f=el('file').files[0];
+  if(!f){el('result').textContent='Selecciona un WAV.';return}
+  if(f.size>12*1024*1024){el('result').textContent='El WAV supera 12 MiB.';return}
+  el('detect').disabled=true;
+  el('verdictCard').hidden=true;
+  el('temporal').hidden=true;
+  el('toggleTemporal').textContent='Ver más datos';
+  try{
+    const data=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result.split(',')[1]);r.onerror=reject;r.readAsDataURL(f)});
+    const start=performance.now();
+    const r=await fetch('/detect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({audio:data})});
+    const body=await r.json();
+    if(!r.ok)throw Error(`HTTP ${r.status}: ${JSON.stringify(body.detail)}`);
+    await loadTemporal(data);
+    el('temporal').hidden=true; // cargado en segundo plano, oculto hasta que lo pidan
+    const isSynthetic=body.is_synthetic;
+    el('result').textContent=isSynthetic?'🤖 Voz sintética detectada':'🧑 Voz humana según el modelo';
+    el('result').className='badge '+(isSynthetic?'synthetic':'human');
+    el('keyParams').replaceChildren(
+      keyParamRow('Modelo',r.headers.get('X-Model-Variant')),
+      keyParamRow('Latencia interna',r.headers.get('X-Process-Time-Ms')+' ms'),
+      keyParamRow('Duración de la llamada',lastTemporal?secs(lastTemporal.duration_s):'—'),
+      keyParamRow('% de solapamiento',lastTemporal?pct(lastTemporal.summary.overlap_ratio):'—'),
+    );
+    el('detail').textContent=`El resultado puede equivocarse. Solicitud: ${r.headers.get('X-Request-ID')}.`;
+    el('verdictCard').hidden=false;
+    await refresh();
+  }catch(e){
+    el('result').textContent=e.message;el('result').className='badge';
+    el('keyParams').replaceChildren();el('detail').textContent='';
+    el('verdictCard').hidden=false;
+  }
+  finally{el('detect').disabled=false}
+};
+
+el('voice').onclick=async()=>{
+  voiceBusy=true;el('voice').disabled=true;
+  try{
+    const r=await fetch('/voice/alert',{method:'POST',headers:{...headers(),'Content-Type':'application/json'},body:JSON.stringify({demo:true})});
+    if(!r.ok)throw Error('No se pudo generar audio. Revisa /voice/status y la configuración del proveedor.');
+    if(audioURL)URL.revokeObjectURL(audioURL);
+    audioURL=URL.createObjectURL(await r.blob());
+    el('audio').src=audioURL;el('audio').hidden=false;
+    el('voiceStatus').textContent='Audio generado. Presiona reproducir.';
+  }catch(e){el('voiceStatus').textContent=e.message}
+  finally{voiceBusy=false;el('voice').disabled=false}
+};
+
+refresh();
+setInterval(()=>{if(!document.hidden)refresh()},3000);
 </script></html>
