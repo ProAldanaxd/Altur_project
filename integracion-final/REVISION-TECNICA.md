@@ -52,16 +52,25 @@ No se contó con el dataset oficial (`altur-data/manifest.csv`, `audio/`, `turns
 - **Corrección:** se añadió una bandera JS `voiceBusy` que el refresco respeta (`if(!voiceBusy) el('voice').disabled = ...`); el botón permanece deshabilitado desde el clic hasta que la promesa de `/voice/alert` resuelve o falla.
 - **Estado:** corregido. Es un cambio solo de JavaScript de página estática; se revisó manualmente el flujo (no hay test automatizado de UI en este proyecto). Recomendado: prueba manual con DevTools abiertas simulando latencia de red antes de la demo en vivo.
 
-## Hallazgos confirmados, documentados como limitación (no corregidos en esta fase)
+## Hallazgos confirmados con corrección lista pero no aplicada al modelo desplegado
 
-### 6. `latency_frac_negative` en el modelo de 87 características es estructuralmente siempre 0 (Medio, requiere reentrenamiento)
+### 6. `latency_frac_negative` en el modelo de 87 características es estructuralmente siempre 0 (Medio)
 
-- **Archivo:** [ml/features.py:105-114](ml/features.py).
+- **Archivo:** [ml/features.py](ml/features.py).
 - **Causa:** la lista `latencies` solo empareja turnos del cliente con turnos del agente que **ya terminaron** antes de que el cliente empiece (`a["end"] <= ct["start"]`). Por construcción, `ct["start"] - max(prev) >= 0` siempre, así que `latency_frac_negative = mean(l < 0 for l in latencies)` es 0.0 para cualquier entrada válida, incluyendo casos con solapamiento real cliente/agente (ese turno del agente queda excluido del cálculo, no incluido con signo negativo).
-- **Por qué no se corrige aquí:** `models/model.pkl` y `models/dev2Alfa.pkl` fueron entrenados exactamente contra esta definición (columna `latency_frac_negative` siempre 0 en el set de entrenamiento). Cambiar la fórmula sin reentrenar alimentaría al modelo desplegado con una distribución de entrada que nunca vio, lo cual el propio encargo prohíbe explícitamente ("no alimentes pesos antiguos con una definición nueva silenciosamente"). Reentrenar requiere el dataset oficial, que no está disponible en este entorno.
-- **Nota:** Dev 3 (`dev3/temporal.py`) ya implementa una latencia con signo correcta en su propio vector de 26 características (`dev3_response_negative_fraction`), pero ese vector es independiente y no alimenta `/detect` (confirmado: la comparación de CV con 87 vs. 113 variables no superó el umbral de mejora fijado, así que nunca se integró).
-- **Prueba nueva (documentación de la limitación, no una corrección):** `tests/test_features.py::test_latency_frac_negative_is_structurally_always_zero`. Fija el comportamiento actual para que nadie "arregle" la fórmula sin también reentrenar y actualizar `models/registry.json`.
-- **Estado:** limitación confirmada y documentada; pendiente de dataset oficial para resolverse con reentrenamiento y nuevo hash de modelo.
+- **Por qué no se aplicó directamente al modelo desplegado:** `models/model.pkl` y `models/dev2Alfa.pkl` fueron entrenados exactamente contra esta definición (columna `latency_frac_negative` siempre 0 en el set de entrenamiento). Cambiar la fórmula que consume `Detector` sin reentrenar alimentaría al modelo desplegado con una distribución de entrada que nunca vio, lo cual el propio encargo prohíbe explícitamente ("no alimentes pesos antiguos con una definición nueva silenciosamente"). Reentrenar requiere el dataset oficial, que sigue sin estar disponible en este entorno.
+- **Corrección implementada, en modo opt-in (sin efecto en producción hoy):** `extract_features_from_turns()` ahora acepta `latency_pairing` (`"legacy"` por defecto, `"signed_v2"` explícito):
+  - `"legacy"`: exactamente el cálculo anterior, byte a byte. `app/model.py`'s `Detector` sigue llamando a la función sin este argumento, así que **su comportamiento no cambió ni un bit** — mismo `Detector.__init__` que compara `self.columns == list(extract_features_from_turns([], 1).keys())` sigue pasando porque los nombres de columnas son idénticos.
+  - `"signed_v2"`: empareja cada turno de agente con el primer turno del cliente que empieza después de ese agente y antes del siguiente (la misma definición ya probada en `dev3/temporal.py`, ver `tests/test_temporal.py::test_response_candidates_are_signed_unique_and_belong_to_latest_agent`), y calcula `latencia = inicio_cliente - fin_agente`, que sí puede ser negativa ante solapamiento real.
+  - `train_validate.py` ahora acepta `--latency-pairing {legacy,signed_v2}` (por defecto `legacy`, para no cambiar accidentalmente el comportamiento de reproducción del baseline actual) y registra qué opción se usó en `models/model.json`.
+- **Pruebas nuevas:** `tests/test_features.py` (5 pruebas): confirman que la llamada por defecto (sin el argumento nuevo) es idéntica a `"legacy"` explícito; que `"signed_v2"` sí produce latencias negativas en un caso de solapamiento real (verificado a mano: -3.0 y -0.5 s en el ejemplo de la prueba); que ambas variantes devuelven exactamente los mismos 87 nombres de columna en el mismo orden (precondición para que el chequeo de identidad de `Detector` siga siendo significativo tras un reentrenamiento); y que un valor inválido de `latency_pairing` se rechaza.
+- **Verificación de que no afecta el modelo desplegado:** la suite completa (incluyendo `tests/test_model.py`, que carga el `Detector` real y compara su salida contra una suma explícita independiente) sigue pasando sin cambios: 88/88 pruebas.
+- **Cómo terminar la corrección cuando llegue el dataset oficial (procedimiento exacto):**
+  1. `python train_validate.py --data-root /ruta/al/altur-data --latency-pairing signed_v2 --out models/model_v2_signed_latency.pkl` — produce un artefacto nuevo, sin tocar `models/model.pkl`.
+  2. Comparar `models/model_v2_signed_latency.json` contra `models/model.json` (mismo protocolo: train/val ya separados por el propio manifest, sin tocar val durante el ajuste). Si `roc_auc`/`balanced_accuracy` en val no mejoran o empeoran, **no promover** el modelo nuevo — se documenta como experimento negativo, igual que se hizo con las 26 features de Dev 3 (ver `INTEGRACION.md`).
+  3. Si mejora (o al menos no empeora) de forma justificable: calcular su SHA-256, añadir una entrada nueva en `models/registry.json` (por ejemplo `"baseline_v2"`) sin borrar la entrada `"baseline"` actual, y solo entonces considerar cambiar el valor por defecto de `MODEL_VARIANT` — con su propia validación HTTP (`verify_real_http.py`) antes de promoverlo.
+  4. Nunca sobrescribir `models/model.pkl` in place: el registro debe permitir volver atrás a la versión anterior en cualquier momento (ver criterio de aceptación "procedimiento para volver al baseline").
+- **Estado:** corrección de código implementada, probada y lista para usar; **no aplicada al modelo en producción** porque eso requiere el dataset oficial y una nueva validación, que no se pueden hacer en este entorno.
 
 ## Puntos revisados sin defecto confirmado
 
@@ -85,5 +94,5 @@ No se contó con el dataset oficial (`altur-data/manifest.csv`, `audio/`, `turns
 | 3 | Contador `written` no distinguía duplicados | Bajo/Medio | Corregido + test |
 | 4 | Conexión SQLite sin cerrar / tabla ausente en `postgres.py` | Medio | Corregido + test |
 | 5 | Botón de voz reactivable durante solicitud en curso | Bajo | Corregido |
-| 6 | `latency_frac_negative` siempre 0 | Medio | Documentado, pendiente de dataset para reentrenar |
+| 6 | `latency_frac_negative` siempre 0 | Medio | Corrección lista y probada (`latency_pairing="signed_v2"`), opt-in; falta reentrenar+validar con dataset oficial para promoverla |
 | 7 | Puertos inconsistentes en documentación | Bajo | Consolidado en README.md vigente |

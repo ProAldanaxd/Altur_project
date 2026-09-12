@@ -18,17 +18,22 @@ Ver `REVISION-TECNICA.md` para el detalle de causa/evidencia de cada hallazgo. E
 | `verify_dev3_http.py` | Antes de probar `include_semantics=true` sin credenciales, se comprueba `/conversation/status`; si el servidor ya tiene Gemini configurado, la verificación se omite en vez de llamar al proveedor real y fallar. Se agregó `--report` (por defecto `verification-dev3-http-new.json`) para no sobrescribir la evidencia histórica. Puerto por defecto actualizado a 8025 | Hallazgos #1, #2, #7 |
 | `verify_real_http.py` | Puerto por defecto actualizado a 8025 para consistencia con el README vigente | Hallazgo #7 |
 | `README.md` | Consolidado como guía única y vigente: arranque, puerto 8025, variables, estado real de cada integración, ejemplos de petición/respuesta, y qué sigue pendiente. Los documentos DEV*-ENTREGA.md/INTEGRACION.md/ALFA-REVISION.md se mantienen intactos como historial | Hallazgo #7 |
-| `ml/features.py` | **Sin cambios de código.** Se documentó formalmente la limitación de `latency_frac_negative` (hallazgo #6) porque corregirla exige reentrenar con el dataset oficial, que no está disponible aquí | Hallazgo #6 |
+| `ml/features.py` | Se agregó el parámetro opt-in `latency_pairing` (`"legacy"` por defecto, `"signed_v2"` corregido) a `extract_features_from_turns()`. Con el valor por defecto el comportamiento es idéntico byte a byte al anterior; `app/model.py` sigue llamando sin este argumento, así que el modelo desplegado no se ve afectado | Hallazgo #6 |
+| `train_validate.py` | Acepta `--latency-pairing {legacy,signed_v2}` (por defecto `legacy`) y registra la opción usada en `models/model.json`, para poder producir la próxima generación de pesos con la fórmula corregida en cuanto exista el dataset oficial | Hallazgo #6 |
 
 No se tocaron: `app/main.py`, `app/audio.py`, `app/limits.py`, `app/model.py`, `ml/ensemble.py`, `dev3/temporal.py`, `dev3/semantics.py`, `dev4/voice.py`, `models/*.pkl`, `models/registry.json`, `models/model.json`. El contrato de `/detect`, las predicciones del modelo baseline y la variante alfa quedan exactamente iguales a como estaban.
 
 ## Pruebas nuevas
 
-Se agregaron 3 pruebas nuevas, todas dentro de la suite existente (`pytest`):
+Se agregaron 7 pruebas nuevas, todas dentro de la suite existente (`pytest`):
 
 1. `tests/test_dev4.py::test_postgres_sync_on_uninitialized_db_reports_status_not_crash` — reproduce el hallazgo #4 con una base SQLite vacía nunca inicializada por `AuditStore`, confirma que `sync_batch()` responde `audit_db_not_initialized` en vez de lanzar `sqlite3.OperationalError`, y que nunca intenta contactar al "proveedor" (se le pasa un `connect` que hace `pytest.fail` si se invoca).
 2. `tests/test_dev4.py::test_audit_write_counter_distinguishes_duplicate_request_id` — encola el mismo evento dos veces con el mismo `request_id`; confirma `written == 1`, `duplicate_ignored == 1` y `persisted.total == 1` (hallazgo #3).
-3. `tests/test_features.py::test_latency_frac_negative_is_structurally_always_zero` — fija el comportamiento actual del hallazgo #6 con un caso que incluye solapamiento real cliente/agente, para prevenir un "arreglo" silencioso de la fórmula sin reentrenar.
+3. `tests/test_features.py::test_default_call_is_legacy_and_latency_frac_negative_is_structurally_always_zero` — fija el comportamiento actual del hallazgo #6 (llamando la función tal como la usa `Detector`, sin el argumento nuevo).
+4. `tests/test_features.py::test_explicit_legacy_matches_default` — confirma que pasar `latency_pairing="legacy"` explícito es idéntico a no pasar el argumento, para que quede documentado que el default no cambió.
+5. `tests/test_features.py::test_signed_v2_produces_negative_latency_on_real_overlap` — confirma que la corrección (`signed_v2`) sí produce latencias negativas (-3.0 s y -0.5 s) en el mismo caso de solapamiento donde `legacy` da 0.
+6. `tests/test_features.py::test_signed_v2_keeps_the_same_87_column_names_as_legacy` — confirma que ambas variantes devuelven exactamente las mismas columnas en el mismo orden, precondición para que un reentrenamiento futuro siga siendo compatible con el chequeo de identidad de `Detector`.
+7. `tests/test_features.py::test_invalid_latency_pairing_is_rejected` — valida el guard del parámetro nuevo.
 
 ## Resultados de pytest
 
@@ -41,10 +46,12 @@ Se agregaron 3 pruebas nuevas, todas dentro de la suite existente (`pytest`):
 **Después de los cambios de esta revisión:**
 
 ```
-84 passed in 9.23s
+88 passed in 11.64s
 ```
 
-81 pruebas heredadas siguen pasando sin cambios de comportamiento (ninguna aserción existente se modificó); se suman las 3 pruebas nuevas. La diferencia de tiempo (64 s → 9 s) se observó entre corridas en la misma máquina y probablemente se debe a caché de disco/antivirus en la primera ejecución tras crear el entorno virtual, no a una optimización deliberada; no se afirma como mejora de rendimiento del código. Ver `BENCHMARK-ANTES-DESPUES.md` para mediciones de latencia con metodología explícita.
+81 pruebas heredadas siguen pasando sin cambios de comportamiento (ninguna aserción existente se modificó); se suman las 7 pruebas nuevas. La diferencia de tiempo (64 s → ~10 s) se observó entre corridas en la misma máquina y probablemente se debe a caché de disco/antivirus en la primera ejecución tras crear el entorno virtual, no a una optimización deliberada; no se afirma como mejora de rendimiento del código. Ver `BENCHMARK-ANTES-DESPUES.md` para mediciones de latencia con metodología explícita.
+
+**Sobre el hallazgo #6 en particular:** el arreglo de `latency_frac_negative` (ver tabla de cambios de código arriba) es opt-in y no cambia ninguna predicción del modelo desplegado — se verificó que las 88 pruebas pasan, incluyendo las que cargan el `Detector` real contra `models/model.pkl` sin ningún cambio de comportamiento. Falta el paso final (reentrenar con el dataset oficial usando `--latency-pairing signed_v2`, comparar contra el baseline actual en val, y solo promoverlo si mejora) — ver el procedimiento exacto en `REVISION-TECNICA.md`.
 
 ## Verificación manual adicional (HTTP)
 

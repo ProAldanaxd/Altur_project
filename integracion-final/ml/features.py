@@ -75,8 +75,50 @@ def _stat_block(arr, prefix, out):
     out[f"{prefix}_cv"] = float(np.std(a) / m) if abs(m) > 1e-6 else 0.0
     return out
 
-def extract_features_from_turns(turns, duration_s=None):
-    """Turn timings -> 87 features. Identical code path to training."""
+def _signed_latencies(caller, agent):
+    """Latency v2: for each agent turn, pair the first caller onset strictly
+
+    after this agent's onset and before the next agent's onset (same
+    definition dev3/temporal.py already uses and tests, see
+    tests/test_temporal.py::test_response_candidates_are_signed_unique_and_belong_to_latest_agent).
+    latency = caller_start - agent_end, which is negative on real overlap.
+    Each caller turn is paired at most once, to the most recent qualifying
+    agent turn — unlike legacy pairing, this does not discard the agent
+    turn just because it hasn't ended yet.
+    """
+    latencies = []
+    for index, at in enumerate(agent):
+        next_agent_start = agent[index + 1]["start"] if index + 1 < len(agent) else float("inf")
+        candidates = [ct for ct in caller if at["start"] < ct["start"] < next_agent_start]
+        if candidates:
+            first = min(candidates, key=lambda ct: ct["start"])
+            latencies.append(first["start"] - at["end"])
+    return latencies
+
+
+def extract_features_from_turns(turns, duration_s=None, *, latency_pairing="legacy"):
+    """Turn timings -> 87 features. Identical code path to training.
+
+    `latency_pairing` controls only the `latency_*` block:
+
+    - "legacy" (default): the exact formula models/model.pkl and
+      models/dev2Alfa.pkl were trained against. Only pairs a caller turn
+      with an agent turn that has ALREADY ENDED, so `latency_frac_negative`
+      is structurally always 0 (see REVISION-TECNICA.md hallazgo #6) and
+      real overlap is silently excluded from the latency stats rather than
+      counted as negative. Kept as the default so nothing calling this
+      function without the keyword (app/model.py's Detector, in particular)
+      changes behavior in any way.
+    - "signed_v2": the corrected pairing (see `_signed_latencies`), which
+      does produce negative latencies on real overlap. This is NOT wired
+      into any deployed model yet: models/model.pkl and models/dev2Alfa.pkl
+      were trained with "legacy" and must be retrained before this can be
+      used in production. train_validate.py accepts --latency-pairing to
+      produce that next generation of weights once the official dataset is
+      available; see REVISION-TECNICA.md for the exact procedure.
+    """
+    if latency_pairing not in ("legacy", "signed_v2"):
+        raise ValueError("latency_pairing must be 'legacy' or 'signed_v2'")
     turns = sorted(turns, key=lambda t: t["start"])
     caller = [t for t in turns if t["channel"] == 0]
     agent = [t for t in turns if t["channel"] == 1]
@@ -102,11 +144,14 @@ def extract_features_from_turns(turns, duration_s=None):
     f["caller_talk_ratio"] = caller_talk / max(total, 1e-6)
     f["talk_balance"] = caller_talk / max(caller_talk + agent_talk, 1e-6)
 
-    latencies = []
-    for ct in caller:
-        prev = [a["end"] for a in agent if a["end"] <= ct["start"]]
-        if prev:
-            latencies.append(ct["start"] - max(prev))
+    if latency_pairing == "signed_v2":
+        latencies = _signed_latencies(caller, agent)
+    else:
+        latencies = []
+        for ct in caller:
+            prev = [a["end"] for a in agent if a["end"] <= ct["start"]]
+            if prev:
+                latencies.append(ct["start"] - max(prev))
     _stat_block(latencies, "latency", f)
     f["latency_entropy"] = _entropy(latencies)
     f["latency_frac_fast"] = float(np.mean([l < 0.3 for l in latencies])) if latencies else 0.0

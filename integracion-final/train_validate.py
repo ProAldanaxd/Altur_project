@@ -28,6 +28,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-root", required=True)
     parser.add_argument("--out", default="models/model.pkl")
+    parser.add_argument("--latency-pairing", choices=("legacy", "signed_v2"), default="legacy",
+                        help="'legacy' reproduces the deployed models exactly (latency_frac_negative "
+                             "always 0, see REVISION-TECNICA.md hallazgo #6). 'signed_v2' trains against "
+                             "the corrected signed-latency pairing instead; only use this to produce a "
+                             "NEW model generation, and re-run the full comparison against 'legacy' on "
+                             "val before promoting it, since this changes what the model actually saw "
+                             "in training and is not validated yet.")
     args = parser.parse_args()
     root = Path(args.data_root)
     manifest = pd.read_csv(root / "manifest.csv")
@@ -37,12 +44,12 @@ def main():
     official_rows, audio_rows, extraction_ms = [], [], []
     for i, row in enumerate(manifest.itertuples()):
         turns = json.loads((root / "turns" / f"{row.anon_id}.json").read_text())["turns"]
-        official_rows.append(extract_features_from_turns(turns, row.duration_s))
+        official_rows.append(extract_features_from_turns(turns, row.duration_s, latency_pairing=args.latency_pairing))
         raw = (root / "audio" / f"{row.anon_id}.wav").read_bytes()
         start = time.perf_counter()
         caller, agent, sr = decode_channels(base64.b64encode(raw).decode())
         detected = vad_segments(caller, sr, 0) + vad_segments(agent, sr, 1)
-        audio_rows.append(extract_features_from_turns(detected, len(caller) / sr))
+        audio_rows.append(extract_features_from_turns(detected, len(caller) / sr, latency_pairing=args.latency_pairing))
         extraction_ms.append((time.perf_counter() - start) * 1000)
         if (i + 1) % 50 == 0:
             print(f"Features de audio: {i + 1}/{len(manifest)}", flush=True)
@@ -69,7 +76,7 @@ def main():
               "audio_trained_model_on_audio_validation": end_to_end,
               "feature_extraction_mean_ms": float(np.mean(extraction_ms)),
               "feature_extraction_p95_ms": float(np.percentile(extraction_ms, 95)),
-              "training_source": "audio_vad", "trained_split": "train",
+              "training_source": "audio_vad", "trained_split": "train", "latency_pairing": args.latency_pairing,
               "notes": "Mismo ensemble y VAD de Dev 2; sin ajuste en val. No es evaluación oculta ni medida de red."}
     with output.open("wb") as f:
         pickle.dump({"model": model, "feature_cols": list(X_audio.columns), "metadata": report}, f)
