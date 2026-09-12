@@ -4,6 +4,15 @@ Guía vigente del proyecto. Los documentos `DEV1-DEV2-REFERENCIA.md`, `INTEGRACI
 
 Dev 3 temporal está implementado y probado con WAV oficiales. La conexión semántica Gemini está implementada y probada con un proveedor simulado; falta API key/modelo habilitado y prueba real — **pendiente por decisión del usuario**, no se busca ni configura en esta fase. No es un detector semántico validado.
 
+## Nuestro enfoque (para jueces y evaluación)
+
+El clasificador desplegado (`models/model.pkl`) **no es un clasificador acústico "de librería"** sobre espectro/MFCC/prosodia. Sus 87 características vienen enteramente de la **dinámica de turnos de la conversación**: cuánto dura cada intervención, cuánto tarda el cliente en responder al agente (con signo), cuánto se solapan, cuántos silencios hay, la entropía de esos patrones. Es el enfoque de "comportamiento conversacional" del reto — cómo reacciona quien llama a las interrupciones y silencios del agente, no cómo suena su voz — combinado con un ensemble simple (regresión logística + random forest + gradient boosting), sin deep learning ni espectrogramas.
+
+- **Profundidad antes que bulto:** probamos agregar 26 características temporales adicionales (`dev3/temporal.py`, turnos con latencias firmadas, solapamientos, reinicios) y las **rechazamos con evidencia**: mejora de AUC de solo 0.0015 en CV de 5 folds sobre train, por debajo del umbral de 0.005 fijado *antes* de medir. La misma disciplina se aplicó esta semana con una corrección real al cálculo de latencias (`latency_pairing="signed_v2"`, ver `REVISION-TECNICA.md` hallazgo #6): probada contra el dataset oficial completo, dio el mismo balanced accuracy y solo +0.0008 de AUC — tampoco se promovió a producción. No agregamos señales que no demuestren aportar.
+- **Viable en producción:** sin GPU ni modelo pesado — CPU, ensemble de scikit-learn, 100-150 ms por llamada en promedio (máximo observado 228 ms) medido con `scripts/check_endpoint.py`, el mismo script del juez, muy por debajo del límite de 30 s.
+- **Enfoque semántico, listo pero no forzado:** `dev3/semantics.py` implementa el tercer enfoque del reto (detectar si quien llama inventa respuestas sobre datos que no existen) vía Gemini, probado exhaustivamente con proveedor simulado; nunca afirma que algo "no existe" sin una premisa de prueba explícita. Pendiente solo de credenciales reales, por decisión del equipo — no de código.
+- **Honestos sobre lo que no sabemos:** no hay forma de medir el desempeño real contra el conjunto oculto (voces y personas nuevas) hasta la evaluación en vivo. La única evidencia disponible es sobre las 71 llamadas de validación (hablantes fuera de train): `balanced_accuracy: 0.945`, `auc: 0.980`, verificado con el script oficial del juez, no solo con herramientas propias (ver `CAMBIOS-Y-VALIDACION.md`).
+
 ## Qué funciona hoy sin ninguna cuenta externa
 
 - `POST /detect`: clasificación local (baseline o alfa), sin llamar a ningún proveedor.
@@ -14,7 +23,7 @@ Dev 3 temporal está implementado y probado con WAV oficiales. La conexión sem�
 ## Qué está implementado pero no verificado con una cuenta real
 
 - Gemini (`dev3/semantics.py`): adaptador probado con proveedor simulado (mocks). Pendiente por decisión del usuario.
-- ElevenLabs (`dev4/voice.py`): adaptador probado con proveedor simulado. Falta `ELEVENLABS_API_KEY`/`ELEVENLABS_VOICE_ID` reales.
+- ElevenLabs (`dev4/voice.py`): **verificado con cuenta real** (generación de MP3 real exitosa, ver `DEV4-ENTREGA.md`). Requiere `ELEVENLABS_API_KEY`/`ELEVENLABS_VOICE_ID` propios configurados en el entorno para reproducirlo.
 - PostgreSQL/Tiger Data (`dev4/postgres.py`): exportación idempotente probada con conexión simulada. Falta `DATABASE_URL` real.
 - Docker/Linux: la imagen está definida (`Dockerfile`, Python 3.12) pero no se ha construido ni probado en este entorno (no hay Docker instalado en la máquina donde se hizo la última revisión).
 
@@ -157,7 +166,7 @@ Estas cifras son históricas (macOS ARM64, Python 3.9.6); no se repitieron en es
 - `/conversation/semantic`: hasta 512 KiB de cuerpo, 400 turnos, 60000 caracteres de texto total.
 - Proveedores externos: máximo 2 solicitudes simultáneas a Gemini, 1 a ElevenLabs; timeouts de 20-30 s sin reintentos automáticos. Ninguno de los tres agrega latencia al camino de `/detect`.
 - Docker: `docker build -t altur-hackmty .` y `docker run -p 8000:8000 -e MODEL_VARIANT=baseline altur-hackmty` — **no probado en este entorno** (sin Docker instalado). La imagen usa Python 3.12 mientras que las pruebas locales de esta revisión usaron Python 3.11.9 y las históricas Python 3.9.6; verificar antes de depender de ella para el benchmark oculto.
-- Nube, HTTPS, dominio y validación de Gemini/ElevenLabs/PostgreSQL reales: pendientes, fuera de alcance de esta revisión.
+- Nube, HTTPS, dominio y validación de Gemini/PostgreSQL reales: pendientes, fuera de alcance de esta revisión (ElevenLabs ya se verificó, ver arriba).
 
 ## Variables de entorno
 
