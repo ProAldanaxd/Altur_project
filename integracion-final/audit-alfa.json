@@ -1,0 +1,63 @@
+{
+  "alfa_sha256": "4a187789ecf0b93a16416810d8b8fc86f1351cdd7861114380b2fbb82dae09c1",
+  "feature_count": 87,
+  "scaler_training_samples": 353,
+  "scaler_matches_all_official_turns": true,
+  "scaler_matches_all_audio_vad": false,
+  "has_training_metadata": false,
+  "alfa_official_turns_diagnostic": {
+    "n": 71,
+    "accuracy": 1.0,
+    "balanced_accuracy": 1.0,
+    "roc_auc": 1.0,
+    "brier": 0.006352201554108725,
+    "confusion_matrix_rows_human_synthetic": [
+      [
+        37,
+        0
+      ],
+      [
+        0,
+        34
+      ]
+    ],
+    "batch_prediction_ms": 28.620083999999935
+  },
+  "alfa_audio_diagnostic": {
+    "n": 71,
+    "accuracy": 0.9014084507042254,
+    "balanced_accuracy": 0.9042130365659777,
+    "roc_auc": 0.951510333863275,
+    "brier": 0.10107079325942442,
+    "confusion_matrix_rows_human_synthetic": [
+      [
+        31,
+        6
+      ],
+      [
+        1,
+        33
+      ]
+    ],
+    "batch_prediction_ms": 13.26133399999918
+  },
+  "baseline_audio_holdout": {
+    "n": 71,
+    "accuracy": 0.9436619718309859,
+    "balanced_accuracy": 0.9447535771065183,
+    "roc_auc": 0.9801271860095389,
+    "brier": 0.046135379971784345,
+    "confusion_matrix_rows_human_synthetic": [
+      [
+        34,
+        3
+      ],
+      [
+        1,
+        33
+      ]
+    ],
+    "batch_prediction_ms": 12.823917000000407
+  },
+  "interpretation": "Si Alfa coincide con los 353 turnos, val no es holdout para Alfa. Comparaci\u00f3n diagn\u00f3stica, no selecci\u00f3n de modelo por test independiente."
+}

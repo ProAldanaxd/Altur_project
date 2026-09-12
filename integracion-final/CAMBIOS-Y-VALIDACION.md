@@ -1,0 +1,73 @@
+# Cambios implementados y su validación
+
+Ver `REVISION-TECNICA.md` para el detalle de causa/evidencia de cada hallazgo. Este documento se centra en qué cambió en el código y cómo se comprobó.
+
+## Entorno de esta validación
+
+- Windows, Python 3.11.9 (la entrega anterior se probó en macOS ARM64/Python 3.9.6; no se afirma equivalencia de rendimiento entre ambos, solo de comportamiento funcional).
+- Entorno virtual `.venv` creado con `python -m venv .venv` e instalado desde `requirements-lock.txt` + `requirements-dev.txt`.
+- Variables externas (`GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GEMINI_MODEL`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `DATABASE_URL`, `MODEL_PATH`, `ADMIN_TOKEN`) retiradas explícitamente del entorno antes de cada ejecución, para que la evaluación no dependa de credenciales.
+
+## Cambios de código
+
+| Archivo | Cambio | Motivo |
+| --- | --- | --- |
+| `dev4/audit.py` | `written` ahora solo cuenta filas realmente insertadas (`cursor.rowcount == 1`); se agregó contador `duplicate_ignored` | Hallazgo #3 |
+| `dev4/postgres.py` | Cierre explícito de la conexión SQLite local (`try/finally: local.close()`); `sqlite3.OperationalError` por tabla ausente se traduce a `status: unavailable, reason: audit_db_not_initialized` en vez de propagar la excepción | Hallazgo #4 |
+| `dev4/demo.html` | Bandera `voiceBusy` para que el refresco automático (cada 3 s) no reactive el botón de generar alerta mientras una solicitud sigue en curso | Hallazgo #5 |
+| `verify_dev3_http.py` | Antes de probar `include_semantics=true` sin credenciales, se comprueba `/conversation/status`; si el servidor ya tiene Gemini configurado, la verificación se omite en vez de llamar al proveedor real y fallar. Se agregó `--report` (por defecto `verification-dev3-http-new.json`) para no sobrescribir la evidencia histórica. Puerto por defecto actualizado a 8025 | Hallazgos #1, #2, #7 |
+| `verify_real_http.py` | Puerto por defecto actualizado a 8025 para consistencia con el README vigente | Hallazgo #7 |
+| `README.md` | Consolidado como guía única y vigente: arranque, puerto 8025, variables, estado real de cada integración, ejemplos de petición/respuesta, y qué sigue pendiente. Los documentos DEV*-ENTREGA.md/INTEGRACION.md/ALFA-REVISION.md se mantienen intactos como historial | Hallazgo #7 |
+| `ml/features.py` | **Sin cambios de código.** Se documentó formalmente la limitación de `latency_frac_negative` (hallazgo #6) porque corregirla exige reentrenar con el dataset oficial, que no está disponible aquí | Hallazgo #6 |
+
+No se tocaron: `app/main.py`, `app/audio.py`, `app/limits.py`, `app/model.py`, `ml/ensemble.py`, `dev3/temporal.py`, `dev3/semantics.py`, `dev4/voice.py`, `models/*.pkl`, `models/registry.json`, `models/model.json`. El contrato de `/detect`, las predicciones del modelo baseline y la variante alfa quedan exactamente iguales a como estaban.
+
+## Pruebas nuevas
+
+Se agregaron 3 pruebas nuevas, todas dentro de la suite existente (`pytest`):
+
+1. `tests/test_dev4.py::test_postgres_sync_on_uninitialized_db_reports_status_not_crash` — reproduce el hallazgo #4 con una base SQLite vacía nunca inicializada por `AuditStore`, confirma que `sync_batch()` responde `audit_db_not_initialized` en vez de lanzar `sqlite3.OperationalError`, y que nunca intenta contactar al "proveedor" (se le pasa un `connect` que hace `pytest.fail` si se invoca).
+2. `tests/test_dev4.py::test_audit_write_counter_distinguishes_duplicate_request_id` — encola el mismo evento dos veces con el mismo `request_id`; confirma `written == 1`, `duplicate_ignored == 1` y `persisted.total == 1` (hallazgo #3).
+3. `tests/test_features.py::test_latency_frac_negative_is_structurally_always_zero` — fija el comportamiento actual del hallazgo #6 con un caso que incluye solapamiento real cliente/agente, para prevenir un "arreglo" silencioso de la fórmula sin reentrenar.
+
+## Resultados de pytest
+
+**Antes de esta revisión (línea base reproducida, sin modificar nada):**
+
+```
+81 passed in 63.99s
+```
+
+**Después de los cambios de esta revisión:**
+
+```
+84 passed in 9.23s
+```
+
+81 pruebas heredadas siguen pasando sin cambios de comportamiento (ninguna aserción existente se modificó); se suman las 3 pruebas nuevas. La diferencia de tiempo (64 s → 9 s) se observó entre corridas en la misma máquina y probablemente se debe a caché de disco/antivirus en la primera ejecución tras crear el entorno virtual, no a una optimización deliberada; no se afirma como mejora de rendimiento del código. Ver `BENCHMARK-ANTES-DESPUES.md` para mediciones de latencia con metodología explícita.
+
+## Verificación manual adicional (HTTP)
+
+Con el servidor corriendo localmente (`MODEL_VARIANT=baseline`, sin credenciales externas, puerto 8025):
+
+- `GET /ready` → `200`, hash del baseline coincide con `models/registry.json`.
+- `GET /model` → `feature_count: 87`, `training_source: audio_vad`, `holdout_preserved: true`, sin cambios respecto al registro.
+- `POST /detect` con cuerpo vacío, base64 inválido, y `audio`/`audio_base64` contradictorios → los tres devuelven `422`, como documentado.
+- `POST /detect` con cuerpo de 17 MiB, con y sin `Content-Length` declarado → `413` en ambos casos.
+- `POST /detect` con cuerpo de 13 MiB de base64 "basura" (bajo el límite de bytes pero no un WAV válido) → `422` (correcto: el límite de tamaño no dispara, pero la decodificación de WAV sí falla).
+- `GET /conversation/status`, `GET /audit/stats`, `GET /voice/status` desde loopback sin `ADMIN_TOKEN` → `200` (acceso de operador local permitido, como documentado).
+- Tras ~250 solicitudes de prueba, `/audit/stats` reportó `process_queue.written == persisted.total` y `duplicate_ignored: 0`, confirmando que el contador corregido cuadra con las filas reales en SQLite.
+
+Esta verificación manual usó WAV **sintéticos** generados en `work/gen_synth_wav.py` (senoides con ruido, no habla real) porque el dataset oficial no está disponible en este entorno. Sirven para probar formato, límites y comportamiento del servidor — **no para afirmar exactitud de clasificación**, que solo puede medirse con el dataset oficial o el benchmark oculto de Altur.
+
+## Qué no se validó en esta fase (y por qué)
+
+| Área | Motivo |
+| --- | --- |
+| Exactitud del modelo contra las 71 llamadas de val | Dataset oficial no presente en esta máquina |
+| Reentrenamiento con `latency_frac_negative` corregido | Requiere dataset oficial |
+| Build/despliegue Docker en Linux | Docker no instalado en este entorno |
+| Gemini con cuenta real | Decisión expresa del usuario: pendiente |
+| ElevenLabs con cuenta real | Sin credenciales disponibles |
+| PostgreSQL/Tiger Data con base real | Sin credenciales disponibles |
+| Despliegue público / HTTPS / Vultr | Fuera de alcance de esta revisión, no solicitado |

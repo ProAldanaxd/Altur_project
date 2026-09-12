@@ -1,0 +1,9 @@
+{
+  "turns": [
+    {"channel": 1, "start": 0, "end": 2, "text": "¿Cuál es la clave del planeta Morado de su cuenta?"},
+    {"channel": 0, "start": 2.2, "end": 4, "text": "No tengo esa clave. ¿De qué me habla?"}
+  ],
+  "traps": [
+    {"trap_id": "demo-ficticia", "agent_turn_index": 0, "description": "En este escenario de prueba, el banco no tiene una clave del planeta Morado. Es una premisa inventada para la demo."}
+  ]
+}

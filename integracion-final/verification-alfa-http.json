@@ -1,0 +1,69 @@
+{
+  "validation_calls": 71,
+  "correct": 64,
+  "model_identity": {
+    "variant": "alfa",
+    "sha256": "4a187789ecf0b93a16416810d8b8fc86f1351cdd7861114380b2fbb82dae09c1",
+    "feature_count": 87,
+    "training_source": "official_turns_inferred_from_scaler",
+    "holdout_preserved": false
+  },
+  "independent_holdout": false,
+  "accuracy_including_errors_as_failures": 0.9014084507042254,
+  "http_errors": [],
+  "confusion_matrix_rows_human_synthetic": [
+    [
+      31,
+      6
+    ],
+    [
+      1,
+      33
+    ]
+  ],
+  "mean_ms": 47.008121507042254,
+  "p50_ms": 45.825792000000035,
+  "p95_ms": 59.171646000000024,
+  "max_ms": 68.17958300000004,
+  "concurrent_requests": [
+    {
+      "status": 200,
+      "ms": 116.4310000000004
+    },
+    {
+      "status": 200,
+      "ms": 138.44208400000025
+    },
+    {
+      "status": 200,
+      "ms": 178.59745800000047
+    },
+    {
+      "status": 200,
+      "ms": 138.80924999999957
+    },
+    {
+      "status": 200,
+      "ms": 155.87133300000033
+    },
+    {
+      "status": 200,
+      "ms": 144.41383400000075
+    },
+    {
+      "status": 200,
+      "ms": 163.7464590000004
+    },
+    {
+      "status": 200,
+      "ms": 130.83750000000015
+    }
+  ],
+  "invalid_input_statuses": [
+    422,
+    422,
+    422,
+    422
+  ],
+  "scope": "HTTP local, val oficial completo, 4 hilos en prueba concurrente; no benchmark oculto ni nube"
+}

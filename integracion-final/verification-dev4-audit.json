@@ -1,0 +1,32 @@
+{
+  "audit": {
+    "storage": "sqlite",
+    "persisted": {
+      "total": 83,
+      "successful": 79,
+      "synthetic": 42,
+      "human": 37,
+      "average_ms": 45.82650144578296
+    },
+    "process_queue": {
+      "queued": 83,
+      "written": 83,
+      "dropped": 0,
+      "write_errors": 0
+    },
+    "pending": 0,
+    "last_error": null,
+    "score_definition": "p_synthetic is model probability of synthetic, not proof of fraud or calibrated confidence"
+  },
+  "checked_records": 83,
+  "sqlite_reopened_count": 83,
+  "voice_live": {
+    "status": "unavailable",
+    "reason": "missing_api_key",
+    "text": "Atenci\u00f3n. Se detectaron se\u00f1ales de voz sint\u00e9tica. Solicita una verificaci\u00f3n adicional de identidad antes de continuar. Esta alerta no confirma fraude.",
+    "automatic_outbound_calls": false
+  },
+  "postgres_live": "not_configured",
+  "demo_http": 200,
+  "outbound_calls_made": false
+}

@@ -1,0 +1,61 @@
+{
+  "validation_calls": 71,
+  "correct": 67,
+  "accuracy_including_errors_as_failures": 0.9436619718309859,
+  "http_errors": [],
+  "confusion_matrix_rows_human_synthetic": [
+    [
+      34,
+      3
+    ],
+    [
+      1,
+      33
+    ]
+  ],
+  "mean_ms": 49.992001140845055,
+  "p50_ms": 48.50874999999988,
+  "p95_ms": 67.1673335000001,
+  "max_ms": 70.7402909999999,
+  "concurrent_requests": [
+    {
+      "status": 200,
+      "ms": 126.54049999999995
+    },
+    {
+      "status": 200,
+      "ms": 151.19024999999996
+    },
+    {
+      "status": 200,
+      "ms": 207.39520800000034
+    },
+    {
+      "status": 200,
+      "ms": 154.5541659999996
+    },
+    {
+      "status": 200,
+      "ms": 176.7366250000002
+    },
+    {
+      "status": 200,
+      "ms": 161.81525000000008
+    },
+    {
+      "status": 200,
+      "ms": 179.68737500000032
+    },
+    {
+      "status": 200,
+      "ms": 133.82137500000013
+    }
+  ],
+  "invalid_input_statuses": [
+    422,
+    422,
+    422,
+    422
+  ],
+  "scope": "HTTP local, val oficial completo, 4 hilos en prueba concurrente; no benchmark oculto ni nube"
+}

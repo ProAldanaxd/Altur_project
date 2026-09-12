@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.env
+*.wav
+data/
+*.sqlite3*
+*.mp3
+
+# El .gitignore de la raíz del repo (fuera de esta carpeta) ignora *.json
+# globalmente. Dentro de esta entrega necesitamos versionar JSON que son
+# metadata de modelo y evidencia de verificación, no logs descartables.
+!*.json
+!**/*.json

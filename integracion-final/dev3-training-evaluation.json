@@ -1,0 +1,38 @@
+{
+  "train_n": 282,
+  "val_used": false,
+  "protocol": "5 fold stratified CV, seed42, same ensemble hyperparameters, paired splits",
+  "limitations": "CV a nivel llamada: no hay ID de hablante para agrupar dentro de train; no es evaluaci\u00f3n oculta ni calibraci\u00f3n de confidence.",
+  "models": {
+    "dev2_87": {
+      "features": 87,
+      "fold_auc": [
+        0.9859335038363171,
+        0.9961636828644501,
+        0.9799465240641712,
+        0.9919786096256684,
+        0.9841897233201582
+      ],
+      "mean_fold_auc": 0.9876424087421529,
+      "oof_auc": 0.9854427396973346,
+      "oof_accuracy": 0.9361702127659575
+    },
+    "dev2_plus_dev3_113": {
+      "features": 113,
+      "fold_auc": [
+        0.9936061381074168,
+        0.9987212276214834,
+        0.9745989304812834,
+        0.9893048128342246,
+        0.9894598155467721
+      ],
+      "mean_fold_auc": 0.9891381849182361,
+      "oof_auc": 0.9872754882965911,
+      "oof_accuracy": 0.9468085106382979
+    }
+  },
+  "mean_auc_delta": 0.0014957761760832078,
+  "promotion_gate": "Mean CV AUC gain >=0.005 and OOF accuracy not reduced; independent validation still required.",
+  "eligible_for_further_validation": false,
+  "production_model_changed": false
+}

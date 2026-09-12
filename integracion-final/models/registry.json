@@ -1,0 +1,16 @@
+{
+  "baseline": {
+    "file": "model.pkl",
+    "sha256": "9aef6ea7a5efc0a4ca3488054f914c2c69acaaa1cba0f7535fdd0342e7472f2f",
+    "sklearn_version": "1.6.1",
+    "training_source": "audio_vad",
+    "holdout_preserved": true
+  },
+  "alfa": {
+    "file": "dev2Alfa.pkl",
+    "sha256": "4a187789ecf0b93a16416810d8b8fc86f1351cdd7861114380b2fbb82dae09c1",
+    "sklearn_version": "1.6.1",
+    "training_source": "official_turns_inferred_from_scaler",
+    "holdout_preserved": false
+  }
+}

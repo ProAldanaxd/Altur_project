@@ -1,0 +1,156 @@
+# Altur — Dev 1 + Dev 2 + Dev 3 + Dev 4
+
+Guía vigente del proyecto. Los documentos `DEV1-DEV2-REFERENCIA.md`, `INTEGRACION.md`, `ALFA-REVISION.md`, `DEV3-ENTREGA.md` y `DEV4-ENTREGA.md` describen el estado de cada entrega histórica (con sus propios puertos y comandos de esa época) y se conservan sin modificar como evidencia; para arrancar y operar el proyecto hoy, usa este README. `REVISION-TECNICA.md`, `CAMBIOS-Y-VALIDACION.md` y `BENCHMARK-ANTES-DESPUES.md` documentan la revisión más reciente.
+
+Dev 3 temporal está implementado y probado con WAV oficiales. La conexión semántica Gemini está implementada y probada con un proveedor simulado; falta API key/modelo habilitado y prueba real — **pendiente por decisión del usuario**, no se busca ni configura en esta fase. No es un detector semántico validado.
+
+## Qué funciona hoy sin ninguna cuenta externa
+
+- `POST /detect`: clasificación local (baseline o alfa), sin llamar a ningún proveedor.
+- `POST /conversation/analyze` y `POST /conversation/semantic` (sin `include_semantics`): análisis temporal 100% local.
+- Auditoría SQLite local (`/audit/stats`, `/audit/calls`) y panel `/demo`.
+- Todo lo anterior está cubierto por la suite de pruebas (`pytest`), que no requiere red ni credenciales.
+
+## Qué está implementado pero no verificado con una cuenta real
+
+- Gemini (`dev3/semantics.py`): adaptador probado con proveedor simulado (mocks). Pendiente por decisión del usuario.
+- ElevenLabs (`dev4/voice.py`): adaptador probado con proveedor simulado. Falta `ELEVENLABS_API_KEY`/`ELEVENLABS_VOICE_ID` reales.
+- PostgreSQL/Tiger Data (`dev4/postgres.py`): exportación idempotente probada con conexión simulada. Falta `DATABASE_URL` real.
+- Docker/Linux: la imagen está definida (`Dockerfile`, Python 3.12) pero no se ha construido ni probado en este entorno (no hay Docker instalado en la máquina donde se hizo la última revisión).
+
+## Arrancar
+
+Desde la raíz del proyecto:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+python -m pip install -r requirements-lock.txt
+python -m pytest -q
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8025
+```
+
+Abrir http://127.0.0.1:8025/docs y http://127.0.0.1:8025/demo. El modelo baseline de Dev 2 es el predeterminado. Alfa sigue seleccionable con `MODEL_VARIANT=alfa` (ver `ALFA-REVISION.md`: alfa no supera a baseline en la comparación disponible y no se recomienda como predeterminado).
+
+Para arrancar sin ninguna variable de entorno externa heredada de la terminal (recomendado para reproducir la línea base):
+
+```bash
+env -u GEMINI_API_KEY -u GOOGLE_API_KEY -u GEMINI_MODEL \
+    -u ELEVENLABS_API_KEY -u ELEVENLABS_VOICE_ID -u DATABASE_URL \
+    -u MODEL_PATH \
+    MODEL_VARIANT=baseline AUDIT_DB_PATH=work/audit-test.sqlite3 \
+    python -m uvicorn app.main:app --host 127.0.0.1 --port 8025
+```
+
+`.env.example` documenta las variables aceptadas; **la aplicación no carga `.env` automáticamente**, hay que exportarlas en la terminal.
+
+## API
+
+| Ruta | Método | Entrada | Resultado |
+| --- | --- | --- | --- |
+| `/health` | GET | — | Proceso vivo |
+| `/ready` | GET | — | 200 solo si el modelo cargó, verificó identidad/versión/columnas/clases y pasó una predicción numérica de prueba |
+| `/model` | GET | — | Variante, SHA-256, número de features, origen del entrenamiento, si conservó holdout |
+| `/detect` | POST | WAV base64 en `audio` o `audio_base64` | `{"is_synthetic": true|false}` |
+| `/conversation/status` | GET | — | Disponibilidad temporal y estado de configuración Gemini |
+| `/conversation/analyze` | POST | Igual que `/detect`, más `include_semantics` opcional | Turnos, silencios, solapamientos, latencias con signo, 26 features, `affects_detect: false` |
+| `/conversation/semantic` | POST | `turns` transcritos y `traps` opcionales | Reacciones con citas e índices verificados |
+| `/audit/stats`, `/audit/calls` | GET | — | Requiere token de operador o loopback |
+| `/voice/status`, `/voice/alert` | GET/POST | — | Requiere token de operador o loopback |
+| `/demo` | GET | — | Panel HTML de la demo |
+
+### Entrada de `/detect`
+
+```json
+{"audio": "BASE64_DEL_WAV_COMPLETO"}
+```
+
+WAV estéreo PCM16 de 8 kHz: canal 0 cliente, canal 1 agente. No se remuestrea ni recorta silencios. `audio` y `audio_base64` son alias del mismo campo; si se envían ambos deben coincidir byte a byte o la solicitud se rechaza con 422.
+
+### Respuesta
+
+```json
+{"is_synthetic": true}
+```
+
+`confidence` existe en el esquema pero se omite: su semántica (calibración, uso en desempate) sigue sin definirse con evidencia suficiente. El umbral interno es 0.5 sobre `p_synthetic`, que **no es confianza calibrada ni prueba de fraude**.
+
+### Errores
+
+| Código | Causa |
+| --- | --- |
+| 422 | WAV inválido, formato incorrecto, canal/tasa de muestreo distinta a la esperada, sin habla detectable en el canal del cliente, o `audio`/`audio_base64` contradictorios |
+| 413 | Cuerpo de la solicitud excede el límite (≈16 MiB antes de decodificar JSON, 12 MiB de WAV ya decodificado) |
+| 503 | Falta el modelo o la auditoría no está disponible (para las rutas de auditoría; `/detect` sigue funcionando aunque falle la auditoría) |
+
+Un error nunca produce un veredicto ficticio: no hay una ruta que devuelva `is_synthetic`/`confidence` por defecto ante una excepción.
+
+### Ejemplo completo (Python)
+
+```python
+import base64, json, pathlib, httpx
+
+wav_bytes = pathlib.Path("work/synth_wav/normal_30s.wav").read_bytes()  # o un WAV propio
+payload = {"audio": base64.b64encode(wav_bytes).decode()}
+response = httpx.post("http://127.0.0.1:8025/detect", json=payload, timeout=30)
+print(response.status_code, response.json())
+# 200 {'is_synthetic': False}
+```
+
+`work/gen_synth_wav.py` genera WAV sintéticos (senoides, no habla real) útiles para probar el formato del endpoint sin el dataset oficial; nunca deben usarse para afirmar exactitud de detección.
+
+### Análisis de una llamada (Dev 3)
+
+```bash
+python -c 'import base64,json,pathlib; print(json.dumps({"audio":base64.b64encode(pathlib.Path("llamada.wav").read_bytes()).decode()}))' > work/call.json
+curl -s http://127.0.0.1:8025/conversation/analyze -H 'Content-Type: application/json' --data-binary @work/call.json
+```
+
+Respuesta: `temporal` (resumen y eventos), `features` (26 valores), `semantic` (`not_requested` por defecto), `transcription` y `affects_detect: false`.
+
+### Gemini opcional (pendiente por decisión del usuario)
+
+Configurar en el entorno del servidor `GEMINI_API_KEY` (o `GOOGLE_API_KEY`) y `GEMINI_MODEL` con un modelo disponible en la cuenta con entrada de audio y salida JSON estructurada. Sin key o modelo, `/conversation/analyze?include_semantics=true` devuelve `unavailable/missing_api_key` sin contactar al proveedor. Ejemplo ficticio de `/conversation/semantic` (sin llamar a ningún proveedor, la transcripción ya viene dada):
+
+```bash
+curl -s http://127.0.0.1:8025/conversation/semantic -H 'Content-Type: application/json' --data-binary @examples/semantic_request.json
+```
+
+## Verificación y evaluación
+
+```bash
+python -m pytest -q
+python verify_real_http.py --data-root /ruta/al/altur-data --url http://127.0.0.1:8025 --report verification-new-http.json
+python verify_dev3_http.py --data-root /ruta/al/altur-data --url http://127.0.0.1:8025
+```
+
+El dataset debe contener `manifest.csv`, `turns/` y `audio/`; no se incluye en este paquete (ver https://github.com/alturio/hackmty26 y sus Releases). `verify_real_http.py` y `verify_dev3_http.py` aceptan `--report` para no sobrescribir la evidencia histórica (`verification-*.json` ya presentes en la raíz).
+
+Sin dataset, `work/bench_detect.py` mide latencia y robustez con WAV sintéticos (ver `BENCHMARK-ANTES-DESPUES.md`).
+
+## Comparación de modelos
+
+| Modelo | Aciertos históricos en 71 llamadas val (HTTP) | Predeterminado |
+| --- | --- | --- |
+| baseline (`models/model.pkl`) | 67/71 (94.4%) | Sí — conserva validación separada |
+| alfa (`models/dev2Alfa.pkl`) | 64/71 (90.1%) | No — evidencia de scaler ajustado con train+val, ver `ALFA-REVISION.md` |
+
+Estas cifras son históricas (macOS ARM64, Python 3.9.6); no se repitieron en esta revisión por falta del dataset. `models/registry.json` y `models/model.json` documentan hash, versión de scikit-learn y procedencia de cada variante.
+
+## Límites y despliegue
+
+- Cuerpo HTTP: ≈16 MiB antes de parsear JSON, aplicado con y sin `Content-Length`. WAV decodificado: 12 MiB.
+- `/conversation/semantic`: hasta 512 KiB de cuerpo, 400 turnos, 60000 caracteres de texto total.
+- Proveedores externos: máximo 2 solicitudes simultáneas a Gemini, 1 a ElevenLabs; timeouts de 20-30 s sin reintentos automáticos. Ninguno de los tres agrega latencia al camino de `/detect`.
+- Docker: `docker build -t altur-hackmty .` y `docker run -p 8000:8000 -e MODEL_VARIANT=baseline altur-hackmty` — **no probado en este entorno** (sin Docker instalado). La imagen usa Python 3.12 mientras que las pruebas locales de esta revisión usaron Python 3.11.9 y las históricas Python 3.9.6; verificar antes de depender de ella para el benchmark oculto.
+- Nube, HTTPS, dominio y validación de Gemini/ElevenLabs/PostgreSQL reales: pendientes, fuera de alcance de esta revisión.
+
+## Variables de entorno
+
+`MODEL_VARIANT`, `MODEL_PATH`, `AUDIT_DB_PATH`, `ADMIN_TOKEN`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`, `GEMINI_MODEL`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL_ID`, `DATABASE_URL`. Ninguna es obligatoria salvo para la integración correspondiente. Ver `.env.example`.
+
+## Documentos de esta entrega
+
+- `REVISION-TECNICA.md`: hallazgos confirmados, severidad, causa y evidencia.
+- `CAMBIOS-Y-VALIDACION.md`: qué se corrigió, qué pruebas nuevas se agregaron y sus resultados.
+- `BENCHMARK-ANTES-DESPUES.md`: metodología y resultados de latencia, con lo que no se pudo medir explícito.

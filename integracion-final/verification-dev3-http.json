@@ -1,0 +1,27 @@
+{
+  "validation_calls": 71,
+  "passed_invariants": 71,
+  "http_errors": [],
+  "mean_ms": 54.297981169014065,
+  "p95_ms": 83.83006249999991,
+  "signed_negative_response_pairs": 159,
+  "mean_overlap_s": 1.4926760563380284,
+  "concurrent_statuses": [
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200
+  ],
+  "semantic_live_status": {
+    "status": "unavailable",
+    "reason": "missing_api_key",
+    "retryable": false,
+    "findings": [],
+    "affects_verdict": false
+  },
+  "scope": "WAV de val oficial, localhost; invariantes matem\u00e1ticas, no exactitud de VAD contra anotaci\u00f3n humana"
+}
