@@ -59,11 +59,17 @@ def test_classification_contract_and_internal_probability():
     with TestClient(app) as client:
         r = client.post("/detect", json={"audio": base64.b64encode(buf.getvalue()).decode()})
         assert r.status_code == 200
-        assert set(r.json()) == {"is_synthetic"}
+        body = r.json()
+        assert set(body) == {"is_synthetic", "confidence"}
+        assert 0 <= body["confidence"] <= 1
+        assert body["confidence"] >= 0.5  # confianza en el veredicto propio, no P(sintético) cruda
         assert app.state.audit.wait_idle()
         row = app.state.audit.recent()[0]
-        assert bool(row["is_synthetic"]) == r.json()["is_synthetic"]
-        assert 0 <= row["p_synthetic"] <= 1
+        assert bool(row["is_synthetic"]) == body["is_synthetic"]
+        # p_synthetic (auditoría interna) es la probabilidad cruda; confidence (contrato
+        # público) es la confianza en el veredicto: coinciden solo si el veredicto es "sintético".
+        expected_confidence = row["p_synthetic"] if row["is_synthetic"] else 1.0 - row["p_synthetic"]
+        assert body["confidence"] == pytest.approx(expected_confidence)
 
 
 def test_db_startup_failure_does_not_disable_model(monkeypatch):

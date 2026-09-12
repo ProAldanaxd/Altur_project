@@ -70,10 +70,10 @@ WAV estéreo PCM16 de 8 kHz: canal 0 cliente, canal 1 agente. No se remuestrea n
 ### Respuesta
 
 ```json
-{"is_synthetic": true}
+{"is_synthetic": true, "confidence": 0.89}
 ```
 
-`confidence` existe en el esquema pero se omite: su semántica (calibración, uso en desempate) sigue sin definirse con evidencia suficiente. El umbral interno es 0.5 sobre `p_synthetic`, que **no es confianza calibrada ni prueba de fraude**.
+`confidence` (0.0–1.0) es la **confianza en el veredicto devuelto** — no la probabilidad cruda de que sea sintético: si `is_synthetic=true`, es `P(sintético)`; si `is_synthetic=false`, es `P(humano) = 1 - P(sintético)`. Así lo espera el contrato oficial de Altur (`scripts/check_endpoint.py` del juez reconstruye `P(sintético)` con esa misma fórmula). El umbral interno es 0.5 sobre la probabilidad cruda del modelo, que **no es una garantía de fraude**.
 
 ### Errores
 
@@ -94,7 +94,7 @@ wav_bytes = pathlib.Path("work/synth_wav/normal_30s.wav").read_bytes()  # o un W
 payload = {"audio": base64.b64encode(wav_bytes).decode()}
 response = httpx.post("http://127.0.0.1:8025/detect", json=payload, timeout=30)
 print(response.status_code, response.json())
-# 200 {'is_synthetic': False}
+# 200 {'is_synthetic': False, 'confidence': 0.94}
 ```
 
 `work/gen_synth_wav.py` genera WAV sintéticos (senoides, no habla real) útiles para probar el formato del endpoint sin el dataset oficial; nunca deben usarse para afirmar exactitud de detección.
@@ -127,6 +127,20 @@ python verify_dev3_http.py --data-root /ruta/al/altur-data --url http://127.0.0.
 El dataset debe contener `manifest.csv`, `turns/` y `audio/`; no se incluye en este paquete (ver https://github.com/alturio/hackmty26 y sus Releases). `verify_real_http.py` y `verify_dev3_http.py` aceptan `--report` para no sobrescribir la evidencia histórica (`verification-*.json` ya presentes en la raíz).
 
 Sin dataset, `work/bench_detect.py` mide latencia y robustez con WAV sintéticos (ver `BENCHMARK-ANTES-DESPUES.md`).
+
+### Verificación con el script oficial del juez
+
+Altur publicó `scripts/check_endpoint.py` en `alturio/hackmty26` — el mismo cliente HTTP que usa el juez para evaluar, no una aproximación nuestra. Una copia queda en `work/altur_official/` para referencia (bajarla de nuevo por si Altur la actualiza):
+
+```bash
+python work/altur_official/check_endpoint.py \
+  --url http://127.0.0.1:8025/detect \
+  --manifest /ruta/al/altur-data/manifest.csv \
+  --audio-dir /ruta/al/altur-data/audio \
+  --split val --n 0 --out work/altur_official/check_endpoint_result.json
+```
+
+Última corrida sobre las 71 llamadas de val: `balanced_accuracy: 0.945`, `auc: 0.980`, `brier: 0.046`, 0 errores, latencia máxima 131 ms (límite del juez: 30 s). Ver `CAMBIOS-Y-VALIDACION.md` para el detalle completo, incluyendo un error de semántica en `confidence` que este mismo script detectó y que ya está corregido.
 
 ## Comparación de modelos
 

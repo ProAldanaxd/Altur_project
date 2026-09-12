@@ -1,0 +1,514 @@
+{
+ "summary": {
+  "calls": 71,
+  "answered": 71,
+  "errors": 0,
+  "accuracy": 0.9436619718309859,
+  "tpr_synthetic": 0.9705882352941176,
+  "tnr_human": 0.918918918918919,
+  "mean_latency_s": 0.10155514225314131,
+  "max_latency_s": 0.13119400000141468,
+  "balanced_accuracy": 0.9447535771065183,
+  "auc": 0.980127186009539,
+  "brier": 0.04613537997178435
+ },
+ "results": [
+  {
+   "is_synthetic": true,
+   "confidence": 0.8972762922725765,
+   "latency_s": 0.13119400000141468,
+   "call_id": "call_925ba94f05a4",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9547838144024806,
+   "latency_s": 0.10989150000386871,
+   "call_id": "call_74b20933dd43",
+   "label": "human"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9206975018310247,
+   "latency_s": 0.10370230000262382,
+   "call_id": "call_fa9e18dd83dd",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.910283927981574,
+   "latency_s": 0.11043459999928018,
+   "call_id": "call_8d75a71e6126",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9328286802807048,
+   "latency_s": 0.11199109999870416,
+   "call_id": "call_fb1405943fed",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9337679685064468,
+   "latency_s": 0.11119879999750992,
+   "call_id": "call_b658b1155216",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.8154599959496858,
+   "latency_s": 0.09075799999845913,
+   "call_id": "call_be72006df132",
+   "label": "human"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9107710491736306,
+   "latency_s": 0.08290529999794671,
+   "call_id": "call_810c24005ecc",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9372656342354877,
+   "latency_s": 0.10599240000010468,
+   "call_id": "call_d4518fcb700a",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.8141463703133655,
+   "latency_s": 0.1006405999942217,
+   "call_id": "call_4affad158a4c",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9545096660876426,
+   "latency_s": 0.09997839999414282,
+   "call_id": "call_bf0384ed27ed",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.8930680603235182,
+   "latency_s": 0.09814499999629334,
+   "call_id": "call_0e1e2f29bfdc",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.8930488720414157,
+   "latency_s": 0.08595400000194786,
+   "call_id": "call_fa26d1186721",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9115929601679746,
+   "latency_s": 0.08681029999570455,
+   "call_id": "call_ca184bb77a63",
+   "label": "human"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.921636086131874,
+   "latency_s": 0.10484079999878304,
+   "call_id": "call_36d72e4b1aef",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9001783744895927,
+   "latency_s": 0.10746859999926528,
+   "call_id": "call_d88d3c23953c",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9248400309091686,
+   "latency_s": 0.0989387000008719,
+   "call_id": "call_185e958a253b",
+   "label": "human"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.7823363325977554,
+   "latency_s": 0.10326050000003306,
+   "call_id": "call_2d4374d86df7",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9047230427098419,
+   "latency_s": 0.10002189999795519,
+   "call_id": "call_569ffb0869eb",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9558749242780081,
+   "latency_s": 0.11668440000357805,
+   "call_id": "call_bc2c7c34acea",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.8703883869878883,
+   "latency_s": 0.09672040000441484,
+   "call_id": "call_9f11e2c5441c",
+   "label": "human"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9630126855333409,
+   "latency_s": 0.09995769999659387,
+   "call_id": "call_c49b6face6c3",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9423949537059594,
+   "latency_s": 0.09688779999851249,
+   "call_id": "call_b5cc1f8d8fee",
+   "label": "human"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.8711499299855778,
+   "latency_s": 0.09666480000305455,
+   "call_id": "call_e329faf2b6a1",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9297664713506938,
+   "latency_s": 0.09721790000185138,
+   "call_id": "call_3b9afdd4a2df",
+   "label": "human"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9218393568535705,
+   "latency_s": 0.08089949999703094,
+   "call_id": "call_743448b8a861",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9806407346650327,
+   "latency_s": 0.09860630000184756,
+   "call_id": "call_0cf2f4a71328",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.675761894252279,
+   "latency_s": 0.08325009999680333,
+   "call_id": "call_0294f969f98b",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9501506382121024,
+   "latency_s": 0.08673149999958696,
+   "call_id": "call_5e4539a471f6",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.6499837164745417,
+   "latency_s": 0.08754979999503121,
+   "call_id": "call_7b1e73c133f8",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9682366398027016,
+   "latency_s": 0.09410809999826597,
+   "call_id": "call_0847d7417bb1",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9111284498154535,
+   "latency_s": 0.11699480000243057,
+   "call_id": "call_fc8bda4b3374",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.8719768409423447,
+   "latency_s": 0.10781519999727607,
+   "call_id": "call_8cafd2754e55",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9794344355582231,
+   "latency_s": 0.10400050000316696,
+   "call_id": "call_af9ad367dcce",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9099546896307804,
+   "latency_s": 0.12568699999974342,
+   "call_id": "call_e2d538297f0c",
+   "label": "human"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.7458250270373951,
+   "latency_s": 0.10852770000201417,
+   "call_id": "call_678ee1dd2242",
+   "label": "human"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9453223802650165,
+   "latency_s": 0.09128809999674559,
+   "call_id": "call_810e3066a7b4",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.7390312560350054,
+   "latency_s": 0.09645840000302996,
+   "call_id": "call_e3f555297277",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9243727158254718,
+   "latency_s": 0.12149810000119032,
+   "call_id": "call_b712f501aeb8",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9079308430526096,
+   "latency_s": 0.08668610000313492,
+   "call_id": "call_9bb847dfc83e",
+   "label": "human"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9492036212218692,
+   "latency_s": 0.09242290000111097,
+   "call_id": "call_f9fbabf70f7e",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.8322107997961097,
+   "latency_s": 0.07765360000485089,
+   "call_id": "call_6971b2685c1d",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9275441641609957,
+   "latency_s": 0.09011360000295099,
+   "call_id": "call_10aa0d1d33f0",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.8785209448436685,
+   "latency_s": 0.10758099999657134,
+   "call_id": "call_f1b82a4a46f6",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.916825232805367,
+   "latency_s": 0.10166439999738941,
+   "call_id": "call_64637c20ee66",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9596813970805117,
+   "latency_s": 0.10059860000183107,
+   "call_id": "call_1c1c0cce9fb5",
+   "label": "human"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9651514076926014,
+   "latency_s": 0.11134260000108043,
+   "call_id": "call_eed2c7389776",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9243254059464349,
+   "latency_s": 0.12787479999678908,
+   "call_id": "call_bd98a8224da0",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.8441323955124681,
+   "latency_s": 0.13113479999447009,
+   "call_id": "call_9a3d5b0a64a3",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.8761994132621583,
+   "latency_s": 0.10599699999875156,
+   "call_id": "call_58ed2170e352",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.8816177338957814,
+   "latency_s": 0.10010489999694983,
+   "call_id": "call_abf730747901",
+   "label": "human"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.8947136911290811,
+   "latency_s": 0.09452800000144634,
+   "call_id": "call_181a5049ecae",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9679986027046378,
+   "latency_s": 0.10661039999831701,
+   "call_id": "call_c04725672945",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9652875696810881,
+   "latency_s": 0.1031310999969719,
+   "call_id": "call_d60330be1b1f",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.5765998131249905,
+   "latency_s": 0.10191460000351071,
+   "call_id": "call_6058d9c5c82f",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9316013620642419,
+   "latency_s": 0.09010629999829689,
+   "call_id": "call_198ef413fe4a",
+   "label": "human"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9231620320837074,
+   "latency_s": 0.09857509999710601,
+   "call_id": "call_957a8384caff",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.923810438454905,
+   "latency_s": 0.10185740000451915,
+   "call_id": "call_47bef2f628eb",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9805652285379882,
+   "latency_s": 0.11522879999392899,
+   "call_id": "call_dc1a55102190",
+   "label": "human"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9085211407345887,
+   "latency_s": 0.09872900000482332,
+   "call_id": "call_a3a1f51a4bf9",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.940250225909792,
+   "latency_s": 0.09159109999745851,
+   "call_id": "call_6c8d4490f8d7",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9273166765271079,
+   "latency_s": 0.1135885000039707,
+   "call_id": "call_8da8b9947630",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9446403172388258,
+   "latency_s": 0.09216379999998026,
+   "call_id": "call_e58669998b76",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9654615773524096,
+   "latency_s": 0.09143870000116294,
+   "call_id": "call_a7c95e99f3b6",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9508555246500343,
+   "latency_s": 0.112296499995864,
+   "call_id": "call_c4fc8a865292",
+   "label": "human"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.977371616298816,
+   "latency_s": 0.09781199999997625,
+   "call_id": "call_e9bd33cdb226",
+   "label": "human"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9327652026785785,
+   "latency_s": 0.10421469999710098,
+   "call_id": "call_f6ce5de7ac09",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.8948153124495861,
+   "latency_s": 0.12456610000663204,
+   "call_id": "call_95ccefc6e4ce",
+   "label": "human"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.7174320189946913,
+   "latency_s": 0.10230769999907352,
+   "call_id": "call_120d6007bcc1",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9400272979808747,
+   "latency_s": 0.08766800000012154,
+   "call_id": "call_cf313f91b995",
+   "label": "human"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.8920261492653107,
+   "latency_s": 0.09723809999559307,
+   "call_id": "call_c21f9cf2390e",
+   "label": "synthetic"
+  }
+ ]
+}

@@ -72,5 +72,13 @@ class Detector:
             probability = float(self.model.predict_proba(row)[0, 1])
         if not np.isfinite(probability) or not 0 <= probability <= 1:
             raise RuntimeError("El modelo devolvió una probabilidad inválida")
-        # Confidence se omite hasta acordar su semántica con Altur.
-        return {"is_synthetic": bool(probability >= 0.5), "p_synthetic": probability}
+        # Altur define confidence como 0.0-1.0, opcional, usado para AUC/calibración
+        # y desempate (contrato oficial de alturio/hackmty26, confirmado 2026-09-12).
+        # scripts/check_endpoint.py del juez reconstruye P(sintético) como
+        # `confidence si is_synthetic, si no 1-confidence` — es decir, confidence
+        # es la confianza en el VEREDICTO devuelto, no P(sintético) cruda.
+        # Verificado con el harness oficial: mandar p_synthetic sin ajustar
+        # invierte el AUC (dio 0.442 en val); ver CAMBIOS-Y-VALIDACION.md.
+        is_synthetic = probability >= 0.5
+        confidence = probability if is_synthetic else 1.0 - probability
+        return {"is_synthetic": bool(is_synthetic), "p_synthetic": probability, "confidence": confidence}

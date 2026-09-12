@@ -20,8 +20,10 @@ Ver `REVISION-TECNICA.md` para el detalle de causa/evidencia de cada hallazgo. E
 | `README.md` | Consolidado como guía única y vigente: arranque, puerto 8025, variables, estado real de cada integración, ejemplos de petición/respuesta, y qué sigue pendiente. Los documentos DEV*-ENTREGA.md/INTEGRACION.md/ALFA-REVISION.md se mantienen intactos como historial | Hallazgo #7 |
 | `ml/features.py` | Se agregó el parámetro opt-in `latency_pairing` (`"legacy"` por defecto, `"signed_v2"` corregido) a `extract_features_from_turns()`. Con el valor por defecto el comportamiento es idéntico byte a byte al anterior; `app/model.py` sigue llamando sin este argumento, así que el modelo desplegado no se ve afectado | Hallazgo #6 |
 | `train_validate.py` | Acepta `--latency-pairing {legacy,signed_v2}` (por defecto `legacy`) y registra la opción usada en `models/model.json`, para poder producir la próxima generación de pesos con la fórmula corregida en cuanto exista el dataset oficial | Hallazgo #6 |
+| `app/model.py` | Activa `confidence` en `/detect` (antes se omitía). `confidence` es la confianza en el veredicto devuelto (`p_synthetic` si `is_synthetic=true`, `1 - p_synthetic` si no), no `p_synthetic` cruda — ver hallazgo #7 | Hallazgo #7 |
+| `tests/test_dev4.py` | Actualiza `test_classification_contract_and_internal_probability` para el nuevo campo `confidence` y su semántica de "confianza en veredicto" | Hallazgo #7 |
 
-No se tocaron: `app/main.py`, `app/audio.py`, `app/limits.py`, `app/model.py`, `ml/ensemble.py`, `dev3/temporal.py`, `dev3/semantics.py`, `dev4/voice.py`, `models/*.pkl`, `models/registry.json`, `models/model.json`. El contrato de `/detect`, las predicciones del modelo baseline y la variante alfa quedan exactamente iguales a como estaban.
+No se tocaron: `app/main.py`, `app/audio.py`, `app/limits.py`, `ml/ensemble.py`, `dev3/temporal.py`, `dev3/semantics.py`, `dev4/voice.py`, `models/*.pkl`, `models/registry.json`, `models/model.json`. Las predicciones (`is_synthetic`) del modelo baseline y la variante alfa quedan exactamente iguales a como estaban; **el único cambio de contrato es que `/detect` ahora incluye `confidence`** (antes se omitía), por la actualización oficial del contrato de Altur — ver sección dedicada más abajo.
 
 ## Pruebas nuevas
 
@@ -34,6 +36,40 @@ Se agregaron 7 pruebas nuevas, todas dentro de la suite existente (`pytest`):
 5. `tests/test_features.py::test_signed_v2_produces_negative_latency_on_real_overlap` — confirma que la corrección (`signed_v2`) sí produce latencias negativas (-3.0 s y -0.5 s) en el mismo caso de solapamiento donde `legacy` da 0.
 6. `tests/test_features.py::test_signed_v2_keeps_the_same_87_column_names_as_legacy` — confirma que ambas variantes devuelven exactamente las mismas columnas en el mismo orden, precondición para que un reentrenamiento futuro siga siendo compatible con el chequeo de identidad de `Detector`.
 7. `tests/test_features.py::test_invalid_latency_pairing_is_rejected` — valida el guard del parámetro nuevo.
+
+## Contrato oficial de Altur y verificación con el script del juez (2026-09-12)
+
+El organizador publicó el contrato exacto de `/detect` y dos scripts en `alturio/hackmty26/scripts/`: `check_endpoint.py` (el mismo cliente HTTP que usa el juez para evaluar) y `example_server.py` (servidor de referencia). Se descargaron a `work/altur_official/` y se usaron para evaluar nuestro servidor real, con el dataset oficial completo, exactamente como lo hará el juez — no una aproximación nuestra.
+
+**Primera corrida** (`work/altur_official/check_endpoint_val_full.json`), servidor sin `confidence` en la respuesta (estado antes de esta sesión):
+
+```
+calls: 71, answered: 71, errors: 0
+accuracy: 0.944, balanced_accuracy: 0.945
+mean_latency_s: 0.146, max_latency_s: 0.228
+auc: None, brier: None   (no se envía confidence)
+```
+
+Confirma, con el harness real del juez, la misma exactitud que ya conocíamos (67/71), 0 errores HTTP, y latencia muy por debajo del límite de 30 s por llamada.
+
+**Se decidió activar `confidence`**, dado que el contrato oficial ahora define su uso explícitamente (afecta reporte de AUC/calibración y desempate). Al activarlo por primera vez enviando `p_synthetic` directo, la misma corrida dio:
+
+```
+auc: 0.442  (peor que azar), brier: 0.448
+```
+
+Investigando la causa: `check_endpoint.py` reconstruye `P(sintético)` como `confidence` si `is_synthetic=true`, o `1 - confidence` si `is_synthetic=false` — el contrato espera "confianza en el veredicto devuelto", no `P(sintético)` cruda (ver hallazgo #7 en `REVISION-TECNICA.md`). Se corrigió `app/model.py` para calcular `confidence = p_synthetic si is_synthetic, si no 1 - p_synthetic`, y se repitió la misma prueba:
+
+```
+calls: 71, answered: 71, errors: 0
+accuracy: 0.944, balanced_accuracy: 0.945
+mean_latency_s: 0.102, max_latency_s: 0.131
+auc: 0.980, brier: 0.046
+```
+
+El AUC/Brier ahora coinciden con las métricas internas ya documentadas en `models/model.json` (ROC-AUC 0.9801, Brier 0.0461) — confirma que el modelo siempre tuvo ese poder discriminativo; el defecto anterior era solo de exposición incorrecta en la respuesta pública. `balanced_accuracy` no cambió en ningún momento (0.945), porque `is_synthetic` no depende de `confidence`.
+
+**Riesgo confirmado, no mitigado:** el contrato del juez trata cualquier `status` distinto de 200 (incluido nuestro `422` por audio sin habla del cliente detectable) como respuesta incorrecta. No ocurrió en las 71 llamadas de val (0 errores en ambas corridas), pero el conjunto oculto usa voces nuevas — ver hallazgo #8 en `REVISION-TECNICA.md`. Queda como decisión pendiente del equipo, no resuelta aquí.
 
 ## Resultados de pytest
 

@@ -72,6 +72,26 @@ No se contó con el dataset oficial (`altur-data/manifest.csv`, `audio/`, `turns
   4. Nunca sobrescribir `models/model.pkl` in place: el registro debe permitir volver atrás a la versión anterior en cualquier momento (ver criterio de aceptación "procedimiento para volver al baseline").
 - **Estado:** corrección de código implementada, probada y lista para usar; **no aplicada al modelo en producción** porque eso requiere el dataset oficial y una nueva validación, que no se pueden hacer en este entorno.
 
+## Contrato oficial de Altur actualizado (2026-09-12)
+
+El organizador publicó en `alturio/hackmty26` el contrato exacto de `/detect` (campos `call_id`/`audio_base64`/`sample_rate`/`channels` en la petición, `is_synthetic`/`confidence` en la respuesta, límite de 30 s por llamada, y dos scripts de referencia: `scripts/check_endpoint.py` — el mismo cliente que usa el juez — y `scripts/example_server.py`). Se descargaron ambos (`work/altur_official/`) y se usó `check_endpoint.py` para evaluar nuestro servidor real con las 71 llamadas de val del dataset oficial, exactamente como lo haría el juez.
+
+### 7. `confidence` invertía el AUC según el script oficial del juez (Alto, corregido)
+
+- **Archivo:** [app/model.py:64-77](app/model.py).
+- **Causa:** al activar `confidence` en la respuesta de `/detect` (antes se omitía por completo), se envió directamente `p_synthetic` sin ajustar. Pero `scripts/check_endpoint.py` del juez reconstruye la probabilidad de sintético como `confidence` si `is_synthetic=true`, o `1 - confidence` si `is_synthetic=false` — es decir, el contrato espera que `confidence` sea la **confianza en el veredicto devuelto**, no `P(sintético)` cruda.
+- **Evidencia medida:** primera corrida de `check_endpoint.py --split val` (71 llamadas) con `confidence = p_synthetic` sin ajustar: `auc: 0.442` (peor que azar), `brier: 0.448`. `balanced_accuracy` seguía en 0.945 porque `is_synthetic` no depende de este cálculo.
+- **Corrección:** `confidence = p_synthetic si is_synthetic, si no 1 - p_synthetic`. Reevaluado con el mismo script y las mismas 71 llamadas: `auc: 0.980`, `brier: 0.046` — coincide con las métricas internas ya conocidas en `models/model.json` (ROC-AUC 0.9801, Brier 0.0461), confirmando que el modelo siempre fue bueno; el defecto era solo de exposición en la API pública.
+- **Prueba nueva:** `tests/test_dev4.py::test_classification_contract_and_internal_probability` ahora verifica que `confidence >= 0.5` y que coincide con `p_synthetic` (auditoría interna) solo cuando el veredicto es "sintético", con `1 - p_synthetic` en el caso contrario.
+- **Estado:** corregido y verificado con el harness oficial del juez, no solo con nuestros propios scripts. Este hallazgo se detectó únicamente porque se probó con `check_endpoint.py` real antes de dar por buena la activación de `confidence` — una prueba contra nuestro propio `verify_real_http.py` (que no valida `confidence`) nunca lo habría revelado.
+
+### 8. Un `422` por audio sin habla del cliente cuenta como respuesta incorrecta en el conjunto oculto (Medio, riesgo confirmado, sin resolver)
+
+- **Archivo:** [app/model.py:65-67](app/model.py) (`InsufficientSpeechError`), [app/main.py:182-183](app/main.py).
+- **Causa:** el contrato del juez es explícito: "Un timeout, un status distinto de 200 o una respuesta sin `is_synthetic` booleano cuenta como respuesta incorrecta." Nuestro `/detect` devuelve `422` cuando el VAD no detecta habla del cliente. En las 71 llamadas de val esto no ocurrió nunca (`errors: 0` en ambas corridas de `check_endpoint.py`), pero el conjunto oculto usa voces y hablantes nuevos — un audio con el canal del cliente muy silencioso o con un patrón que el VAD energético no reconozca produciría un `422`, que cuenta como fallo total en vez de tener aunque sea una oportunidad de acertar al azar.
+- **Por qué no se decidió aquí:** corregirlo implica una decisión de producto, no solo de código — devolver un veredicto por defecto (¿cuál? ¿con qué justificación?) cambia el comportamiento documentado ("un error nunca produce un veredicto ficticio") y podría ocultar audio genuinamente inválido en vez de degradar con gracia. Es una decisión que le corresponde al equipo, no algo para resolver unilateralmente.
+- **Estado:** riesgo confirmado y documentado, sin mitigar. Pendiente de decisión del equipo.
+
 ## Puntos revisados sin defecto confirmado
 
 - **Límite de cuerpo HTTP con y sin `Content-Length`:** probado manualmente contra el servidor local con cuerpos de 13 MiB (pasa validación de tamaño, falla luego por WAV inválido → 422, correcto) y 17 MiB (rechazado con 413 tanto con `Content-Length` declarado como con `Transfer-Encoding: chunked`). Comportamiento documentado se sostiene.
@@ -79,7 +99,7 @@ No se contó con el dataset oficial (`altur-data/manifest.csv`, `audio/`, `turns
 - **Modelo, versión de scikit-learn, orden de columnas y clases:** las comprobaciones de `app/model.py` en el arranque (`Detector.__init__`) se ejecutaron y pasaron con el entorno de esta revisión (Python 3.11.9, scikit-learn 1.6.1 vía `requirements-lock.txt`).
 - **Cierre de `AuditStore` y comportamiento ante fallo de apertura de SQLite:** cubierto por pruebas existentes (`test_db_startup_failure_does_not_disable_model`) y se confirmó manualmente que `/detect` sigue disponible aunque la auditoría falle.
 - **Docker:** no se pudo construir ni probar; no hay `docker` instalado en este entorno. Sigue como pendiente heredado, ahora explícito también aquí.
-- **Gemini/ElevenLabs/PostgreSQL con credenciales reales:** fuera de alcance por decisión del usuario (Gemini) y por falta de cuentas (ElevenLabs/PostgreSQL). Los adaptadores y sus pruebas con mocks no se modificaron en su lógica de negocio, solo el cierre de recursos en `dev4/postgres.py`.
+- **Gemini/PostgreSQL con credenciales reales:** fuera de alcance por decisión del usuario (Gemini) y por falta de cuentas (PostgreSQL). Los adaptadores y sus pruebas con mocks no se modificaron en su lógica de negocio, solo el cierre de recursos en `dev4/postgres.py`. **ElevenLabs sí se verificó con cuenta real** (ver `DEV4-ENTREGA.md` y `CAMBIOS-Y-VALIDACION.md`): generación de MP3 real exitosa tras resolver varios problemas de configuración de cuenta (no de código).
 
 ## Referencias de puertos y documentación desactualizada (Bajo)
 
@@ -95,4 +115,6 @@ No se contó con el dataset oficial (`altur-data/manifest.csv`, `audio/`, `turns
 | 4 | Conexión SQLite sin cerrar / tabla ausente en `postgres.py` | Medio | Corregido + test |
 | 5 | Botón de voz reactivable durante solicitud en curso | Bajo | Corregido |
 | 6 | `latency_frac_negative` siempre 0 | Medio | Corrección lista y probada (`latency_pairing="signed_v2"`), opt-in; falta reentrenar+validar con dataset oficial para promoverla |
-| 7 | Puertos inconsistentes en documentación | Bajo | Consolidado en README.md vigente |
+| 7 | `confidence` invertía el AUC (semántica de "confianza en veredicto" mal interpretada) | Alto | Corregido y verificado con el script oficial del juez (AUC 0.442 → 0.980) |
+| 8 | `422` por falta de habla del cliente cuenta como respuesta incorrecta en el conjunto oculto | Medio | Riesgo confirmado, documentado, pendiente de decisión del equipo |
+| 9 | Puertos inconsistentes en documentación | Bajo | Consolidado en README.md vigente |
