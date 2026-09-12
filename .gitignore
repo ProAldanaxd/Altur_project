@@ -1,0 +1,21 @@
+# Entorno virtual
+venv/
+env/
+.venv/
+
+# Variables de entorno (llaves secretas, contraseñas)
+.env
+
+# Archivos de caché de Python
+__pycache__/
+*.py[cod]
+
+# Archivos de audio o datasets pesados que no deben subir a GitHub
+*.wav
+*.mp3
+*.json
+logs.csv
+
+# IDEs
+.vscode/
+.idea/
