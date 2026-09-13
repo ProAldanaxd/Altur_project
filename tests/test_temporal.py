@@ -3,7 +3,7 @@ import json
 import numpy as np
 import pytest
 
-from dev3.temporal import FEATURE_NAMES, analyze_channels, analyze_turns, extract_model_features
+from conversation.temporal import FEATURE_NAMES, analyze_channels, analyze_turns, extract_model_features
 
 
 def turn(channel, start, end):

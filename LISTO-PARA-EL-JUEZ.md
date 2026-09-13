@@ -49,7 +49,7 @@ Punto fuerte y ya medido con el script oficial: media 100-150 ms, máximo 228 ms
 - **Formato de evaluación real:** el juez visita la mesa del equipo 15 minutos, corre su benchmark en vivo contra el endpoint, y el equipo explica su solución en ese mismo tiempo. **El endpoint debe estar accesible durante todo ese lapso** — esto es un requisito operativo, no solo técnico, y no estaba resuelto en ninguna parte del proyecto hasta ahora.
 - **El material del reto valora profundidad sobre cantidad de señales**: confirma que la decisión de no integrar las 26 features de Dev 3 fue la correcta bajo los propios criterios del reto, no una limitación nuestra.
 - **El canal del agente es señal, no ruido**: el material del reto aclara que el audio del agente sirve para entender a qué estaba reaccionando quien llama, no es solo contexto. Ya lo usamos (turnos del agente entran a las 87 features y a los 26 de Dev 3), vale la pena decirlo explícitamente como decisión de diseño, no como dato incidental.
-- **Semántico es una de las tres direcciones sugeridas explícitamente** (no una idea nuestra aislada) — el trabajo de Gemini en `dev3/semantics.py` está más alineado con el reto de lo que el proyecto comunicaba antes.
+- **Semántico es una de las tres direcciones sugeridas explícitamente** (no una idea nuestra aislada) — el trabajo de Gemini en `conversation/semantics.py` está más alineado con el reto de lo que el proyecto comunicaba antes.
 
 ## 4. Riesgo operativo sin resolver — accesibilidad del endpoint durante el juzgamiento
 

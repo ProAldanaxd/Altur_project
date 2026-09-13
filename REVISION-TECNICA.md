@@ -27,17 +27,17 @@ No se contó con el dataset oficial (`altur-data/manifest.csv`, `audio/`, `turns
 - **Corrección:** se agregó `--report`, con valor por defecto `verification-dev3-http-new.json` (no colisiona con el archivo histórico). `verification-dev3-http.json` original queda intacto en el repositorio.
 - **Estado:** corregido.
 
-### 3. `dev4/audit.py`: el contador `written` no distinguía inserciones reales de duplicados ignorados (Bajo/Medio)
+### 3. `ops/audit.py`: el contador `written` no distinguía inserciones reales de duplicados ignorados (Bajo/Medio)
 
-- **Archivo:** [dev4/audit.py:70-75](dev4/audit.py) (versión previa).
+- **Archivo:** [ops/audit.py:70-75](ops/audit.py) (versión previa).
 - **Causa:** `INSERT OR IGNORE` no lanza excepción cuando `request_id` ya existe; el código incrementaba `written` sin mirar `cursor.rowcount`, así que un intento ignorado por colisión de clave primaria se contaba igual que una fila nueva persistida. Con UUID4 la colisión es extremadamente improbable en operación normal, pero el contador no reflejaba la realidad si ocurriera un reintento con el mismo `request_id` (por ejemplo, un cliente HTTP que reintenta con el mismo header de idempotencia en el futuro).
 - **Corrección:** se usa `cursor.rowcount` para incrementar `written` solo si la fila se insertó de verdad, y se agregó un contador nuevo `duplicate_ignored` para que la distinción sea visible en `/audit/stats`.
 - **Prueba nueva:** `tests/test_dev4.py::test_audit_write_counter_distinguishes_duplicate_request_id`.
 - **Estado:** corregido y probado.
 
-### 4. `dev4/postgres.py`: conexión SQLite local sin cierre explícito y sin manejo de tabla ausente (Medio)
+### 4. `ops/postgres.py`: conexión SQLite local sin cierre explícito y sin manejo de tabla ausente (Medio)
 
-- **Archivo:** [dev4/postgres.py:27-51](dev4/postgres.py) (versión previa).
+- **Archivo:** [ops/postgres.py:27-51](ops/postgres.py) (versión previa).
 - **Causa doble:**
   - `with sqlite3.connect(path, timeout=2) as local:` usa `Connection` como gestor de contexto, pero en el módulo estándar `sqlite3` eso solo controla la transacción (commit/rollback); **no cierra la conexión**. El archivo se mantenía abierto tras `sync_batch()`, lo que en un proceso de larga vida acumula descriptores de archivo.
   - Si `sync_batch()` se ejecuta contra una ruta SQLite que nunca fue inicializada por `AuditStore` (archivo vacío o inexistente creado por `sqlite3.connect`), `SELECT * FROM calls ...` lanza `sqlite3.OperationalError: no such table: calls` sin capturarse, y el script termina con una traza no controlada en vez de un estado explícito.
@@ -45,9 +45,9 @@ No se contó con el dataset oficial (`altur-data/manifest.csv`, `audio/`, `turns
 - **Prueba nueva:** `tests/test_dev4.py::test_postgres_sync_on_uninitialized_db_reports_status_not_crash`.
 - **Estado:** corregido y probado.
 
-### 5. `dev4/demo.html`: el refresco periódico podía reactivar "Generar alerta" durante una solicitud en curso (Bajo)
+### 5. `ops/demo.html`: el refresco periódico podía reactivar "Generar alerta" durante una solicitud en curso (Bajo)
 
-- **Archivo:** [dev4/demo.html](dev4/demo.html) (versión previa).
+- **Archivo:** [ops/demo.html](ops/demo.html) (versión previa).
 - **Causa:** `el('voice').onclick` deshabilita el botón al iniciar y lo reactiva en `finally`, pero `setInterval(refresh, 3000)` corría en paralelo y hacía `el('voice').disabled = voice.status !== 'configured'` sin mirar si ya había una generación en curso. Si el proveedor está `configured`, el refresco de 3 segundos podía reactivar el botón mientras la primera solicitud seguía pendiente, permitiendo un doble clic que dispara una segunda solicitud a ElevenLabs (con costo real de crédito) mientras la primera todavía no responde.
 - **Corrección:** se añadió una bandera JS `voiceBusy` que el refresco respeta (`if(!voiceBusy) el('voice').disabled = ...`); el botón permanece deshabilitado desde el clic hasta que la promesa de `/voice/alert` resuelve o falla.
 - **Estado:** corregido. Es un cambio solo de JavaScript de página estática; se revisó manualmente el flujo (no hay test automatizado de UI en este proyecto). Recomendado: prueba manual con DevTools abiertas simulando latencia de red antes de la demo en vivo.
@@ -61,7 +61,7 @@ No se contó con el dataset oficial (`altur-data/manifest.csv`, `audio/`, `turns
 - **Por qué no se aplicó directamente al modelo desplegado:** `models/model.pkl` y `models/dev2Alfa.pkl` fueron entrenados exactamente contra esta definición (columna `latency_frac_negative` siempre 0 en el set de entrenamiento). Cambiar la fórmula que consume `Detector` sin reentrenar alimentaría al modelo desplegado con una distribución de entrada que nunca vio, lo cual el propio encargo prohíbe explícitamente ("no alimentes pesos antiguos con una definición nueva silenciosamente"). Reentrenar requiere el dataset oficial, que sigue sin estar disponible en este entorno.
 - **Corrección implementada, en modo opt-in (sin efecto en producción hoy):** `extract_features_from_turns()` ahora acepta `latency_pairing` (`"legacy"` por defecto, `"signed_v2"` explícito):
   - `"legacy"`: exactamente el cálculo anterior, byte a byte. `app/model.py`'s `Detector` sigue llamando a la función sin este argumento, así que **su comportamiento no cambió ni un bit** — mismo `Detector.__init__` que compara `self.columns == list(extract_features_from_turns([], 1).keys())` sigue pasando porque los nombres de columnas son idénticos.
-  - `"signed_v2"`: empareja cada turno de agente con el primer turno del cliente que empieza después de ese agente y antes del siguiente (la misma definición ya probada en `dev3/temporal.py`, ver `tests/test_temporal.py::test_response_candidates_are_signed_unique_and_belong_to_latest_agent`), y calcula `latencia = inicio_cliente - fin_agente`, que sí puede ser negativa ante solapamiento real.
+  - `"signed_v2"`: empareja cada turno de agente con el primer turno del cliente que empieza después de ese agente y antes del siguiente (la misma definición ya probada en `conversation/temporal.py`, ver `tests/test_temporal.py::test_response_candidates_are_signed_unique_and_belong_to_latest_agent`), y calcula `latencia = inicio_cliente - fin_agente`, que sí puede ser negativa ante solapamiento real.
   - `train_validate.py` ahora acepta `--latency-pairing {legacy,signed_v2}` (por defecto `legacy`, para no cambiar accidentalmente el comportamiento de reproducción del baseline actual) y registra qué opción se usó en `models/model.json`.
 - **Pruebas nuevas:** `tests/test_features.py` (5 pruebas): confirman que la llamada por defecto (sin el argumento nuevo) es idéntica a `"legacy"` explícito; que `"signed_v2"` sí produce latencias negativas en un caso de solapamiento real (verificado a mano: -3.0 y -0.5 s en el ejemplo de la prueba); que ambas variantes devuelven exactamente los mismos 87 nombres de columna en el mismo orden (precondición para que el chequeo de identidad de `Detector` siga siendo significativo tras un reentrenamiento); y que un valor inválido de `latency_pairing` se rechaza.
 - **Verificación de que no afecta el modelo desplegado:** la suite completa (incluyendo `tests/test_model.py`, que carga el `Detector` real y compara su salida contra una suma explícita independiente) sigue pasando sin cambios: 88/88 pruebas.
@@ -99,7 +99,7 @@ El organizador publicó en `alturio/hackmty26` el contrato exacto de `/detect` (
 - **Modelo, versión de scikit-learn, orden de columnas y clases:** las comprobaciones de `app/model.py` en el arranque (`Detector.__init__`) se ejecutaron y pasaron con el entorno de esta revisión (Python 3.11.9, scikit-learn 1.6.1 vía `requirements-lock.txt`).
 - **Cierre de `AuditStore` y comportamiento ante fallo de apertura de SQLite:** cubierto por pruebas existentes (`test_db_startup_failure_does_not_disable_model`) y se confirmó manualmente que `/detect` sigue disponible aunque la auditoría falle.
 - **Docker:** no se pudo construir ni probar; no hay `docker` instalado en este entorno. Sigue como pendiente heredado, ahora explícito también aquí.
-- **Gemini/PostgreSQL con credenciales reales:** fuera de alcance por decisión del usuario (Gemini) y por falta de cuentas (PostgreSQL). Los adaptadores y sus pruebas con mocks no se modificaron en su lógica de negocio, solo el cierre de recursos en `dev4/postgres.py`. **ElevenLabs sí se verificó con cuenta real** (ver `DEV4-ENTREGA.md` y `CAMBIOS-Y-VALIDACION.md`): generación de MP3 real exitosa tras resolver varios problemas de configuración de cuenta (no de código).
+- **Gemini/PostgreSQL con credenciales reales:** fuera de alcance por decisión del usuario (Gemini) y por falta de cuentas (PostgreSQL). Los adaptadores y sus pruebas con mocks no se modificaron en su lógica de negocio, solo el cierre de recursos en `ops/postgres.py`. **ElevenLabs sí se verificó con cuenta real** (ver `DEV4-ENTREGA.md` y `CAMBIOS-Y-VALIDACION.md`): generación de MP3 real exitosa tras resolver varios problemas de configuración de cuenta (no de código).
 
 ## Referencias de puertos y documentación desactualizada (Bajo)
 

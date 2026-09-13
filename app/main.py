@@ -16,10 +16,10 @@ from pydantic import AliasChoices, BaseModel, Field, model_validator
 from app.audio import MAX_BASE64_CHARS, decode_channels
 from app.model import Detector, InsufficientSpeechError
 from app.limits import RequestSizeLimit
-from dev3.temporal import analyze_channels, extract_model_features
-from dev3.semantics import Turn, Trap, analyze_transcript, transcribe_channels, configuration_status
-from dev4.audit import AuditStore
-from dev4.voice import generate_alert, status as voice_status, ALERT_TEXT
+from conversation.temporal import analyze_channels, extract_model_features
+from conversation.semantics import Turn, Trap, analyze_transcript, transcribe_channels, configuration_status
+from ops.audit import AuditStore
+from ops.voice import generate_alert, status as voice_status, ALERT_TEXT
 
 
 @asynccontextmanager
@@ -229,4 +229,4 @@ def voice_alert(payload: VoiceRequest):
 def demo_page():
     # read_text() sin encoding usa la codificación local del sistema (cp1252 en
     # Windows), lo que corrompe los acentos UTF-8 del HTML. Forzar utf-8 explícito.
-    return (Path(__file__).resolve().parents[1] / "dev4/demo.html").read_text(encoding="utf-8")
+    return (Path(__file__).resolve().parents[1] / "ops/demo.html").read_text(encoding="utf-8")

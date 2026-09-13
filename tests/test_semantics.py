@@ -4,7 +4,7 @@ import httpx
 import numpy as np
 import pytest
 
-from dev3.semantics import analyze_transcript, transcribe_channels
+from conversation.semantics import analyze_transcript, transcribe_channels
 
 TURNS = [{"channel": 1, "start": 0, "end": 1, "text": "Dime tu clave del planeta Morado."},
          {"channel": 0, "start": 1.1, "end": 2, "text": "No tengo esa clave. ¿Qué es eso?"}]

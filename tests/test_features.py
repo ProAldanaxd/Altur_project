@@ -11,7 +11,7 @@ already-deployed pickle without retraining would silently feed it a
 distribution shift it never saw during training.
 
 `latency_pairing="signed_v2"`: the corrected pairing (same definition
-dev3/temporal.py already uses and tests — see
+conversation/temporal.py already uses and tests — see
 tests/test_temporal.py::test_response_candidates_are_signed_unique_and_belong_to_latest_agent),
 which does produce negative latencies on real overlap. Not wired into any
 deployed model yet: it exists so train_validate.py can produce the NEXT

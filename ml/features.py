@@ -79,7 +79,7 @@ def _signed_latencies(caller, agent):
     """Latency v2: for each agent turn, pair the first caller onset strictly
 
     after this agent's onset and before the next agent's onset (same
-    definition dev3/temporal.py already uses and tests, see
+    definition conversation/temporal.py already uses and tests, see
     tests/test_temporal.py::test_response_candidates_are_signed_unique_and_belong_to_latest_agent).
     latency = caller_start - agent_end, which is negative on real overlap.
     Each caller turn is paired at most once, to the most recent qualifying

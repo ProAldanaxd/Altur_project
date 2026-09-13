@@ -6,7 +6,7 @@ from pathlib import Path
 
 import httpx
 
-from dev3.semantics import analyze_transcript, configuration_status
+from conversation.semantics import analyze_transcript, configuration_status
 
 
 def sanitize(value):

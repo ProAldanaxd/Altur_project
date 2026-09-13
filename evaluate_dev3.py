@@ -11,7 +11,7 @@ from sklearn.model_selection import StratifiedKFold
 from threadpoolctl import threadpool_limits
 
 from app.audio import decode_channels
-from dev3.temporal import analyze_turns, extract_model_features
+from conversation.temporal import analyze_turns, extract_model_features
 from ml.features import extract_features_from_turns, vad_segments
 from ml.ensemble import build_model
 

@@ -6,7 +6,7 @@ import argparse
 import os
 import sqlite3
 
-from dev4.audit import COLUMNS
+from ops.audit import COLUMNS
 
 DDL = """CREATE TABLE IF NOT EXISTS altur_calls (
 request_id TEXT PRIMARY KEY, created_at TIMESTAMPTZ NOT NULL, status_code INTEGER NOT NULL,

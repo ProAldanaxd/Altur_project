@@ -5,8 +5,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 COPY ml ./ml
-COPY dev3 ./dev3
-COPY dev4 ./dev4
+COPY conversation ./conversation
+COPY ops ./ops
 COPY models ./models
 RUN mkdir -p /app/data && chown 10001:10001 /app/data
 USER 10001:10001

@@ -11,9 +11,9 @@ import soundfile as sf
 from fastapi.testclient import TestClient
 
 from app.main import app
-from dev4.audit import AuditStore
-from dev4.postgres import sync_batch
-from dev4.voice import generate_alert
+from ops.audit import AuditStore
+from ops.postgres import sync_batch
+from ops.voice import generate_alert
 
 
 def event(request_id="test-id"):

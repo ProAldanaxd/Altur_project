@@ -12,9 +12,9 @@ Ver `REVISION-TECNICA.md` para el detalle de causa/evidencia de cada hallazgo. E
 
 | Archivo | Cambio | Motivo |
 | --- | --- | --- |
-| `dev4/audit.py` | `written` ahora solo cuenta filas realmente insertadas (`cursor.rowcount == 1`); se agregó contador `duplicate_ignored` | Hallazgo #3 |
-| `dev4/postgres.py` | Cierre explícito de la conexión SQLite local (`try/finally: local.close()`); `sqlite3.OperationalError` por tabla ausente se traduce a `status: unavailable, reason: audit_db_not_initialized` en vez de propagar la excepción | Hallazgo #4 |
-| `dev4/demo.html` | Bandera `voiceBusy` para que el refresco automático (cada 3 s) no reactive el botón de generar alerta mientras una solicitud sigue en curso | Hallazgo #5 |
+| `ops/audit.py` | `written` ahora solo cuenta filas realmente insertadas (`cursor.rowcount == 1`); se agregó contador `duplicate_ignored` | Hallazgo #3 |
+| `ops/postgres.py` | Cierre explícito de la conexión SQLite local (`try/finally: local.close()`); `sqlite3.OperationalError` por tabla ausente se traduce a `status: unavailable, reason: audit_db_not_initialized` en vez de propagar la excepción | Hallazgo #4 |
+| `ops/demo.html` | Bandera `voiceBusy` para que el refresco automático (cada 3 s) no reactive el botón de generar alerta mientras una solicitud sigue en curso | Hallazgo #5 |
 | `verify_dev3_http.py` | Antes de probar `include_semantics=true` sin credenciales, se comprueba `/conversation/status`; si el servidor ya tiene Gemini configurado, la verificación se omite en vez de llamar al proveedor real y fallar. Se agregó `--report` (por defecto `verification-dev3-http-new.json`) para no sobrescribir la evidencia histórica. Puerto por defecto actualizado a 8025 | Hallazgos #1, #2, #7 |
 | `verify_real_http.py` | Puerto por defecto actualizado a 8025 para consistencia con el README vigente | Hallazgo #7 |
 | `README.md` | Consolidado como guía única y vigente: arranque, puerto 8025, variables, estado real de cada integración, ejemplos de petición/respuesta, y qué sigue pendiente. Los documentos DEV*-ENTREGA.md/INTEGRACION.md/ALFA-REVISION.md se mantienen intactos como historial | Hallazgo #7 |
@@ -23,7 +23,7 @@ Ver `REVISION-TECNICA.md` para el detalle de causa/evidencia de cada hallazgo. E
 | `app/model.py` | Activa `confidence` en `/detect` (antes se omitía). `confidence` es la confianza en el veredicto devuelto (`p_synthetic` si `is_synthetic=true`, `1 - p_synthetic` si no), no `p_synthetic` cruda — ver hallazgo #7 | Hallazgo #7 |
 | `tests/test_dev4.py` | Actualiza `test_classification_contract_and_internal_probability` para el nuevo campo `confidence` y su semántica de "confianza en veredicto" | Hallazgo #7 |
 
-No se tocaron: `app/main.py`, `app/audio.py`, `app/limits.py`, `ml/ensemble.py`, `dev3/temporal.py`, `dev3/semantics.py`, `dev4/voice.py`, `models/*.pkl`, `models/registry.json`, `models/model.json`. Las predicciones (`is_synthetic`) del modelo baseline y la variante alfa quedan exactamente iguales a como estaban; **el único cambio de contrato es que `/detect` ahora incluye `confidence`** (antes se omitía), por la actualización oficial del contrato de Altur — ver sección dedicada más abajo.
+No se tocaron: `app/main.py`, `app/audio.py`, `app/limits.py`, `ml/ensemble.py`, `conversation/temporal.py`, `conversation/semantics.py`, `ops/voice.py`, `models/*.pkl`, `models/registry.json`, `models/model.json`. Las predicciones (`is_synthetic`) del modelo baseline y la variante alfa quedan exactamente iguales a como estaban; **el único cambio de contrato es que `/detect` ahora incluye `confidence`** (antes se omitía), por la actualización oficial del contrato de Altur — ver sección dedicada más abajo.
 
 ## Pruebas nuevas
 
@@ -107,16 +107,16 @@ Esta verificación manual usó WAV **sintéticos** generados en `work/gen_synth_
 
 A diferencia del resto de esta revisión, esta parte sí se probó con una cuenta y credenciales reales del equipo (nunca vistas ni manejadas por el asistente; el usuario las configuró directamente en su propia terminal como variables de entorno). Resultado final: `POST /voice/alert` devolvió `200` con un MP3 real y válido (ID3 v2.4.0, MPEG layer III, 128 kbps, 44.1 kHz, ~188 KB), generado por la API real de ElevenLabs a partir del texto fijo de alerta.
 
-El camino hasta llegar ahí pasó por cuatro causas de error distintas, cada una diagnosticada leyendo la razón que ya devuelve `dev4/voice.py` (y, cuando la razón agregada no bastaba, con un `print` de depuración temporal agregado solo para esta sesión de trabajo, que imprimía el cuerpo de la respuesta del proveedor únicamente en la terminal del servidor — nunca en la respuesta HTTP al cliente — y que ya se quitó del código antes de este commit):
+El camino hasta llegar ahí pasó por cuatro causas de error distintas, cada una diagnosticada leyendo la razón que ya devuelve `ops/voice.py` (y, cuando la razón agregada no bastaba, con un `print` de depuración temporal agregado solo para esta sesión de trabajo, que imprimía el cuerpo de la respuesta del proveedor únicamente en la terminal del servidor — nunca en la respuesta HTTP al cliente — y que ya se quitó del código antes de este commit):
 
 1. **`provider_http_401`, `"status":"api_key_id_used_as_api_key"`** — se usó el *ID* de la API key (visible en la tabla del dashboard de ElevenLabs) en vez de la key secreta real (que siempre empieza con `sk_`).
 2. **`provider_http_401`, `"status":"missing_permissions"`** — una key con formato correcto pero creada con permisos restringidos, sin el scope de *Text to Speech* habilitado.
 3. **`provider_http_401`, `"status":"detected_unusual_activity"`** — ElevenLabs deshabilitó el acceso Free Tier de la cuenta por "actividad inusual" (su sistema antiabuso; puede activarse por VPN/proxy o por varios intentos seguidos). Se resolvió solo, sin cambiar nada, después de un rato.
 4. **`provider_http_402`, `"status":"payment_required"`, código `paid_plan_required`** — cuentas Free Tier no pueden usar voces de la librería pública de ElevenLabs vía API. Se resolvió agregando una voz a "My Voices" en el dashboard y usando ese Voice ID.
 
-En ningún momento hizo falta cambiar `dev4/voice.py`: el adaptador ya distinguía y exponía correctamente cada código de estado (`provider_http_401`/`402`, con `retryable` correcto) desde antes de esta sesión. El diagnóstico fue enteramente de configuración de cuenta, no de código. Ver también la nota de actualización en `DEV4-ENTREGA.md`.
+En ningún momento hizo falta cambiar `ops/voice.py`: el adaptador ya distinguía y exponía correctamente cada código de estado (`provider_http_401`/`402`, con `retryable` correcto) desde antes de esta sesión. El diagnóstico fue enteramente de configuración de cuenta, no de código. Ver también la nota de actualización en `DEV4-ENTREGA.md`.
 
-**Qué significa esto para el estado del proyecto:** `dev4/voice.py` deja de ser "solo probado con mocks" y pasa a tener una verificación end-to-end real, aunque puntual (una sola cuenta, una sola vez, no automatizada en CI). `status()` sigue devolviendo `live_verified: false` siempre por diseño — esa bandera describe si el proceso actual ya confirmó el proveedor en esta ejecución, no si alguna vez funcionó; no se cambió ese comportamiento.
+**Qué significa esto para el estado del proyecto:** `ops/voice.py` deja de ser "solo probado con mocks" y pasa a tener una verificación end-to-end real, aunque puntual (una sola cuenta, una sola vez, no automatizada en CI). `status()` sigue devolviendo `live_verified: false` siempre por diseño — esa bandera describe si el proceso actual ya confirmó el proveedor en esta ejecución, no si alguna vez funcionó; no se cambió ese comportamiento.
 
 ## Qué no se validó en esta fase (y por qué)
 
