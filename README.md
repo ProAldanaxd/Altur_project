@@ -187,6 +187,10 @@ Verificado en ambos casos con un clon completamente nuevo desde GitHub, instalac
 
 ## 14. Q&A oficial del evento y despliegue público
 
+**Desplegado y verificado (2026-09-13):** `https://altur-project-specialbros.onrender.com` (Render, plan gratuito, build por `Dockerfile`/`render.yaml`). Probado con `scripts/check_endpoint.py` oficial contra las 71 llamadas reales de val: `balanced_accuracy: 0.945`, `auc: 0.980`, `brier: 0.046`, 0 errores — idéntico a las pruebas locales; la latencia sube de ~150 ms a ~1.4 s de media por el viaje real por internet, pero sigue muy por debajo del límite de 30 s. Reporte completo en `work/altur_official/check_endpoint_render_deploy.json`.
+
+**Antes de que el juez llegue a la mesa:** el plan gratuito duerme el servicio tras un rato sin tráfico. Mandar `GET /health` un par de minutos antes para despertarlo (ver "riesgo real" más abajo) — confirmado que responde `{"status":"ok"}`.
+
 Los organizadores aclararon por separado (no en el PDF ni el README de `alturio/hackmty26`, sino en una ronda de preguntas del evento) varios puntos que cambian la prioridad operativa del proyecto:
 
 | Pregunta | Respuesta oficial | Qué implica para nosotros |
@@ -281,7 +285,8 @@ Los scripts `verify_*` aceptan `--report` para no sobrescribir la evidencia hist
 
 | Pendiente | Por qué sigue abierto |
 | --- | --- |
-| **Desplegar en Render/Railway/Vercel y probar la URL pública** | **Máxima prioridad ahora** (sección 14): el Q&A oficial confirma que el juez corre el benchmark contra un despliegue real, antes de la explicación, y Devpost exige la URL. Requiere que el equipo cree la cuenta — no se puede hacer desde aquí |
+| ~~Desplegar en Render y probar la URL pública~~ | **Hecho** (sección 14): `https://altur-project-specialbros.onrender.com`, verificado con el script oficial del juez, mismos resultados que en local |
+| Mantener el servicio "despierto" antes de la evaluación | El plan gratuito de Render lo duerme tras inactividad; mandar `GET /health` unos minutos antes de que llegue el juez |
 | Reentrenar con `latency_pairing=signed_v2` y promoverlo | Ya se probó (sección 7.6): no supera el umbral de mejora fijado — no es un pendiente técnico, es una decisión ya tomada con evidencia |
 | `422` por audio sin habla podría contar como fallo en el conjunto oculto | Decisión de producto pendiente del equipo (sección 7.8) |
 | Gemini con cuenta real | Pendiente por decisión expresa del equipo, no de código |
