@@ -71,9 +71,8 @@ ul.notes li{margin:4px 0}
 
 <section>
   <h2>Alerta de voz para el agente</h2>
-  <p>"Se detectaron señales de voz sintética. Solicita una verificación adicional de identidad."</p>
-  <p>La alerta no confirma fraude y no llama a ningún teléfono.</p>
-  <button id="voice" disabled>Generar alerta con ElevenLabs</button>
+  <p>Se reproduce sola al terminar de analizar una llamada: un mensaje si el veredicto es sintético, otro distinto si es humano. Ninguno confirma fraude ni identidad, y no se hace ninguna llamada telefónica.</p>
+  <button id="voice" disabled>Repetir última alerta</button>
   <small id="voiceStatus"></small>
   <audio id="audio" controls hidden></audio>
 </section>
@@ -88,7 +87,7 @@ ul.notes li{margin:4px 0}
 
 <script>
 const el=id=>document.getElementById(id);
-let audioURL,voiceBusy=false,lastTemporal=null,callAudioURL=null;
+let audioURL,voiceBusy=false,lastTemporal=null,callAudioURL=null,lastVerdictIsSynthetic=null;
 
 function headers(){const token=el('token').value;return token?{'Authorization':'Bearer '+token}:{}}
 
@@ -201,6 +200,7 @@ el('detect').onclick=async()=>{
     await loadTemporal(data);
     el('temporal').hidden=true; // cargado en segundo plano, oculto hasta que lo pidan
     const isSynthetic=body.is_synthetic;
+    lastVerdictIsSynthetic=isSynthetic;
     el('result').textContent=isSynthetic?'🤖 Voz sintética detectada':'🧑 Voz humana según el modelo';
     el('result').className='badge '+(isSynthetic?'synthetic':'human');
     el('keyParams').replaceChildren(
@@ -211,6 +211,7 @@ el('detect').onclick=async()=>{
     );
     el('detail').textContent=`El resultado puede equivocarse. Solicitud: ${r.headers.get('X-Request-ID')}.`;
     el('verdictCard').hidden=false;
+    playVoiceAlert(isSynthetic); // automática, no bloquea el resto del flujo
     await refresh();
   }catch(e){
     el('result').textContent=e.message;el('result').className='badge';
@@ -220,18 +221,24 @@ el('detect').onclick=async()=>{
   finally{el('detect').disabled=false}
 };
 
-el('voice').onclick=async()=>{
+// Genera y reproduce la alerta de ElevenLabs para el veredicto dado. Se llama
+// sola al terminar de analizar una llamada, y también desde el botón manual
+// (que repite la última alerta si el reproveedor está configurado).
+async function playVoiceAlert(isSynthetic){
   voiceBusy=true;el('voice').disabled=true;
   try{
-    const r=await fetch('/voice/alert',{method:'POST',headers:{...headers(),'Content-Type':'application/json'},body:JSON.stringify({demo:true})});
+    const r=await fetch('/voice/alert',{method:'POST',headers:{...headers(),'Content-Type':'application/json'},body:JSON.stringify({demo:true,is_synthetic:isSynthetic})});
     if(!r.ok)throw Error('No se pudo generar audio. Revisa /voice/status y la configuración del proveedor.');
     if(audioURL)URL.revokeObjectURL(audioURL);
     audioURL=URL.createObjectURL(await r.blob());
     el('audio').src=audioURL;el('audio').hidden=false;
-    el('voiceStatus').textContent='Audio generado. Presiona reproducir.';
+    try{await el('audio').play()}catch(playError){/* el navegador puede bloquear autoplay; los controles siguen disponibles */}
+    el('voiceStatus').textContent=isSynthetic?'Alerta de sintético reproducida automáticamente.':'Alerta de humano reproducida automáticamente.';
   }catch(e){el('voiceStatus').textContent=e.message}
   finally{voiceBusy=false;el('voice').disabled=false}
-};
+}
+
+el('voice').onclick=()=>playVoiceAlert(lastVerdictIsSynthetic===null?true:lastVerdictIsSynthetic);
 
 refresh();
 setInterval(()=>{if(!document.hidden)refresh()},3000);

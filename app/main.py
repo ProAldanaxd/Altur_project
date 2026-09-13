@@ -19,7 +19,7 @@ from app.limits import RequestSizeLimit
 from conversation.temporal import analyze_channels, extract_model_features
 from conversation.semantics import Turn, Trap, analyze_transcript, transcribe_channels, configuration_status
 from ops.audit import AuditStore
-from ops.voice import generate_alert, status as voice_status, ALERT_TEXT
+from ops.voice import generate_alert, status as voice_status, ALERT_TEXT_SYNTHETIC, ALERT_TEXT_HUMAN
 
 
 @asynccontextmanager
@@ -208,18 +208,20 @@ def audit_calls(request: Request, limit: int = 50):
 
 @app.get("/voice/status", dependencies=[Depends(require_operator)])
 def alert_status():
-    return {**voice_status(), "text": ALERT_TEXT, "automatic_outbound_calls": False}
+    return {**voice_status(), "text_synthetic": ALERT_TEXT_SYNTHETIC, "text_human": ALERT_TEXT_HUMAN,
+            "automatic_outbound_calls": False}
 
 
 class VoiceRequest(BaseModel):
     demo: bool
+    is_synthetic: bool = True
 
 
 @app.post("/voice/alert", dependencies=[Depends(require_operator)])
 def voice_alert(payload: VoiceRequest):
     if not payload.demo:
         raise HTTPException(422, "Este endpoint genera la alerta para la demo")
-    result = generate_alert()
+    result = generate_alert(is_synthetic=payload.is_synthetic)
     if result["status"] != "ok":
         raise HTTPException(503, result)
     return Response(result["audio"], media_type="audio/mpeg", headers={"Cache-Control": "no-store"})

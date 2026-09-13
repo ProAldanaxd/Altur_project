@@ -102,6 +102,21 @@ def test_voice_provider_contract_and_errors(monkeypatch, code):
         assert "test-secret" not in json.dumps(r)
 
 
+def test_voice_alert_text_matches_verdict(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "test-secret")
+    monkeypatch.setenv("ELEVENLABS_VOICE_ID", "voice-test")
+    sent_texts = []
+    def handler(request):
+        sent_texts.append(json.loads(request.content)["text"])
+        return httpx.Response(200, headers={"Content-Type": "audio/mpeg"}, content=b"ID3" + b"x" * 64)
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        generate_alert(client=client, is_synthetic=True)
+        generate_alert(client=client, is_synthetic=False)
+    assert "sintética" in sent_texts[0] and "humana" not in sent_texts[0]
+    assert "humana" in sent_texts[1] and "sintética" not in sent_texts[1]
+    assert sent_texts[0] != sent_texts[1]
+
+
 def test_postgres_idempotent_export_and_failure_keeps_pending(monkeypatch, tmp_path):
     monkeypatch.setenv("DATABASE_URL", "postgresql://test-only")
     store = AuditStore(tmp_path / "test.db")
