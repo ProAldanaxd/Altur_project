@@ -47,7 +47,7 @@ WAV estéreo PCM16 de 8 kHz: canal 0 = cliente (a clasificar), canal 1 = agente.
 
 Altur (Tecnologías Altur S.A.P.I. de C.V.) construye agentes de voz con IA que atienden llamadas para bancos de América Latina. El reto de HackMTY26 (*"Defend the Bank Against Voice Deepfakes"*) pide un sistema que detecte si quien llama a un banco es una persona real o una voz sintética, a partir de una llamada grabada entre el cliente y el agente. El material oficial sugiere tres enfoques posibles —no obligatorios—: detección acústica (la voz en sí), comportamiento conversacional (cómo reacciona el cliente a interrupciones y silencios del agente) y semántico (si el cliente inventa respuestas sobre datos que no existen).
 
-El equipo (Dev 1 a Dev 4) recibió el dataset oficial (llamadas grabadas, español, 8 kHz estéreo, canal 0 = cliente/canal 1 = agente) y construyó el sistema en las secciones 2-5. Más adelante, Claude Code recibió el encargo de revisar, depurar y dejar reproducible ese trabajo (sección 6 en adelante), con una condición explícita del usuario: la conexión real con Gemini queda pendiente por decisión propia, sin buscar credenciales para esa fase.
+El equipo (Dev 1 a Dev 4) recibió el dataset oficial (llamadas grabadas, español, 8 kHz estéreo, canal 0 = cliente/canal 1 = agente) y construyó el sistema en las secciones 2-5. Más adelante se hizo una revisión técnica a fondo para depurar y dejar reproducible ese trabajo (sección 6 en adelante), con una condición explícita del equipo: la conexión real con Gemini queda pendiente por decisión propia, sin buscar credenciales para esa fase.
 
 Repositorio oficial del reto: https://github.com/alturio/hackmty26. Dataset oficial: `manifest.csv` + `turns/` (en ese mismo repo) + `audio/` (release `v1.0`, `altur-challenge-audio.zip`, ~640 MB) — no se redistribuye, es exclusivo de HackMTY26.
 
@@ -88,7 +88,7 @@ Rutas nuevas: `GET /conversation/status`, `POST /conversation/analyze` (mismo au
 
 **Comparación con evidencia:** se compararon las 87 features de Dev 2 contra 113 (87+26) con el mismo ensemble e hiperparámetros, 5 folds estratificados sobre train (semilla 42), sin tocar val. AUC medio: 0.987642 (87) vs. 0.989138 (113) — mejora de solo 0.0015, por debajo del umbral de 0.005 fijado *antes* de medir. **Por eso las 26 features nunca se integraron a producción** — la disciplina de "profundidad antes que bulto" se mantuvo incluso cuando el propio equipo las había construido.
 
-Estado de Gemini en esa etapa: configuración local presente, pero ninguna respuesta real exitosa confirmada (`gemini-2.5-flash` → 404; `gemini-3.8-flash` → 503 y 400 sin causa aislada). `configured` solo verifica variables; `live_verified` seguía en `false`. Pendiente de decisión del equipo, no de código — se retomó y se resolvió del lado de Claude Code en la sección 10, pero solo para ElevenLabs; Gemini sigue sin credenciales por decisión expresa del usuario.
+Estado de Gemini en esa etapa: configuración local presente, pero ninguna respuesta real exitosa confirmada (`gemini-2.5-flash` → 404; `gemini-3.8-flash` → 503 y 400 sin causa aislada). `configured` solo verifica variables; `live_verified` seguía en `false`. Pendiente de decisión del equipo, no de código — se retomó y se resolvió en la sección 10, pero solo para ElevenLabs; Gemini sigue sin credenciales por decisión expresa del equipo.
 
 ## 5. Dev 4 — auditoría, demo, voz y PostgreSQL
 
@@ -98,9 +98,9 @@ Rutas de operador (`/audit/stats`, `/audit/calls`, `/voice/status`, `/voice/aler
 
 **Evidencia de esa entrega:** 81 pruebas automáticas aprobadas; 71 WAV de val por HTTP con 67 aciertos (3 falsos positivos, 1 falso negativo); latencia media 47.2 ms / p95 59.1 ms; 83 eventos persistidos (79 respuestas 200, 4 errores 422, 0 descartes). Material de presentación: `Pitch-Altur.pptx` (5 diapositivas) con guion de 3 minutos — problema, cómo funciona, resultados (67/71), demo en vivo, cierre — más un recorrido técnico de 15 minutos repartido entre los cuatro devs.
 
-## 6. Entrega a Claude Code
+## 6. Revisión técnica a fondo
 
-A partir de aquí, el encargo pasó a revisar, depurar, optimizar y dejar reproducible todo lo anterior para el reto — con evidencia medida, no solo recomendaciones. Regla explícita del usuario: la conexión real con Gemini queda fuera de esta fase, sin buscar credenciales. Línea base reproducida primero: **81/81 pruebas** en un entorno nuevo (Windows, Python 3.11.9, mismo `requirements-lock.txt`), confirmando que el estado heredado (macOS ARM64, Python 3.9.6) es reproducible en otra máquina.
+A partir de aquí, el trabajo pasó a revisar, depurar, optimizar y dejar reproducible todo lo anterior para el reto — con evidencia medida, no solo recomendaciones. Regla explícita del equipo: la conexión real con Gemini queda fuera de esta fase, sin buscar credenciales. Línea base reproducida primero: **81/81 pruebas** en un entorno nuevo (Windows, Python 3.11.9, mismo `requirements-lock.txt`), confirmando que el estado heredado (macOS ARM64, Python 3.9.6) es reproducible en otra máquina.
 
 El dataset oficial no estaba disponible en ese momento (se buscó y no estaba en la máquina), lo que limitó la primera ronda de revisión a análisis de código y pruebas con WAV sintéticos generados localmente (`work/gen_synth_wav.py`) — nunca usados para afirmar exactitud, solo formato y latencia.
 
@@ -153,7 +153,7 @@ De paso se encontró y corrigió un bug real: `/demo` leía el HTML sin especifi
 
 ## 11. ElevenLabs: verificación con cuenta real
 
-A diferencia del resto de la revisión, esta parte sí se probó con una cuenta y credenciales reales del equipo (nunca vistas ni manejadas por el asistente; el usuario las configuró en su propia terminal). Resultado final: `POST /voice/alert` devolvió `200` con un MP3 real y válido (ID3 v2.4.0, MPEG layer III, 128 kbps, 44.1 kHz, ~188 KB).
+A diferencia del resto de la revisión, esta parte sí se probó con una cuenta y credenciales reales del equipo (configuradas directamente en la terminal, nunca compartidas fuera de ahí). Resultado final: `POST /voice/alert` devolvió `200` con un MP3 real y válido (ID3 v2.4.0, MPEG layer III, 128 kbps, 44.1 kHz, ~188 KB).
 
 El camino pasó por cuatro causas de error de cuenta distintas, cada una diagnosticada con la razón que ya devolvía `ops/voice.py` (y, cuando hizo falta más detalle, con un `print` de depuración temporal — solo en la terminal del servidor, nunca en la respuesta HTTP, y ya retirado del código):
 
