@@ -20,11 +20,8 @@ def status():
     return {"status": "configured", "live_verified": False}
 
 
-def generate_alert(*, client=None, is_synthetic):
-    if is_synthetic:
-        text = ALERT_TEXT_SYNTHETIC 
-    else:
-        text = ALERT_TEXT_HUMAN
+def generate_alert(*, client=None, is_synthetic=True):
+    text = ALERT_TEXT_SYNTHETIC if is_synthetic else ALERT_TEXT_HUMAN
     state = status()
     if state["status"] != "configured":
         return state
