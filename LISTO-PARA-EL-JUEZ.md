@@ -83,7 +83,7 @@ Esto da una URL pública temporal que se le entrega al juez. Más confiable que 
 ## 6. Checklist para correr justo antes de que llegue el juez
 
 ```powershell
-cd "ruta\a\integracion-final"
+cd "ruta\a\Altur_project"
 .\.venv\Scripts\Activate.ps1
 python -m pytest -q                                    # confirmar 88/88 verde
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8025   # o el túnel de la Opción B

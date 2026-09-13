@@ -1,19 +1,23 @@
-# Entorno virtual
+# Entornos virtuales
+.venv/
 venv/
 env/
-.venv/
 
 # Variables de entorno (llaves secretas, contraseñas)
 .env
 
-# Archivos de caché de Python
+# Caché de Python
 __pycache__/
 *.py[cod]
+.pytest_cache/
 
-# Archivos de audio o datasets pesados que no deben subir a GitHub
+# Bases de datos locales de auditoría
+*.sqlite3*
+data/
+
+# Audio pesado (dataset o pruebas) y logs descartables
 *.wav
 *.mp3
-*.json
 logs.csv
 
 # IDEs

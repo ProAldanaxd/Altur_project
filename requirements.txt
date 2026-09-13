@@ -1,1 +1,9 @@
-
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+numpy==2.0.2
+soundfile>=0.13,<0.14
+scikit-learn==1.6.1
+pandas==2.3.3
+scipy==1.13.1
+threadpoolctl>=3,<4
+httpx==0.28.1
