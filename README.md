@@ -168,18 +168,13 @@ En ningún momento hizo falta cambiar `ops/voice.py`: el adaptador ya distinguí
 
 Se leyó el documento confidencial del reto (`hackmty26-altur-challenge.pdf`, Tecnologías Altur S.A.P.I. de C.V., agosto 2026 — no se sube al repo por ser público y el PDF estar marcado confidencial) y se comparó todo el proyecto contra los **criterios de jueces publicados**: Robustez, Originalidad, Profundidad técnica, Viabilidad y Latencia.
 
-- **Robustez:** lo único medible es val (0.945 balanced accuracy); el desempeño en el conjunto oculto (voces y personas nuevas) es desconocido hasta la evaluación en vivo — así se debe presentar, no como garantía.
+- **Robustez:** lo único medible es val (0.945 balanced accuracy); el desempeño en el conjunto oculto (voces y personas nuevas) es desconocido hasta la evaluación en vivo — así se debe presentar, no como garantía. El Q&A oficial (sección 14) aclaró que el conjunto oculto usa el mismo motor de síntesis que train/val, solo con voces distintas — reduce la incertidumbre (no hace falta generalizar a una técnica de deepfake nunca vista), pero no la elimina.
 - **Originalidad:** punto fuerte no explicitado hasta esta revisión — el modelo usa señales de comportamiento conversacional, no un clasificador acústico convencional (ver sección 2).
 - **Profundidad técnica:** dos experimentos rechazados con evidencia y un umbral fijado antes de medir (26 features de Dev 3, y `latency_pairing=signed_v2`), más un error real de semántica (`confidence`) detectado y corregido con el script oficial del juez, no con herramientas propias.
 - **Viabilidad:** CPU únicamente, sin modelo pesado, formato de entrada igual al telefónico real.
 - **Latencia:** 100-200 ms por llamada medido con el script del juez, muy por debajo del límite de 30 s.
 
-**Lo que el PDF reveló y no estaba resuelto:** los jueces visitan la mesa del equipo 15 minutos y corren su benchmark en vivo contra el endpoint — **debe ser alcanzable durante ese lapso**, algo que ningún documento anterior había resuelto. Se verificó que `--host 0.0.0.0` funciona sin cambios de código (responde igual desde la IP de red local que desde `127.0.0.1`). Dos opciones para el día del evento, ninguna decidida todavía:
-
-- **Red local:** `python -m uvicorn app.main:app --host 0.0.0.0 --port 8025`, dar al juez `http://<IP-local>:8025/detect`. Riesgo: algunas redes de evento aíslan dispositivos entre sí.
-- **Túnel público (recomendado, más confiable):** `ngrok http 8025` (no instalado en ningún entorno usado hasta ahora) da una URL pública que funciona sin importar la red. Requiere instalarlo y ensayarlo *antes* del día del evento.
-
-Esta decisión —qué laptop corre el servidor y cómo se expone— **queda pendiente del equipo**; no es algo que se pueda resolver de antemano sin probarlo en las condiciones reales del venue.
+**Lo que el PDF reveló y no estaba resuelto:** los jueces visitan la mesa del equipo 15 minutos y corren su benchmark en vivo contra el endpoint — **debe ser alcanzable durante ese lapso**, algo que ningún documento anterior había resuelto. En ese momento se verificó `--host 0.0.0.0` (red local) y un túnel (ngrok) como opciones, sin decidir cuál. **Esto quedó resuelto y superado por la sección 14**: el Q&A oficial del evento confirma que el benchmark corre contra un despliegue público real, no la laptop del equipo por red local.
 
 ## 13. Reorganización del repositorio
 
@@ -189,6 +184,40 @@ Dos limpiezas estructurales, ambas a pedido explícito del usuario:
 2. **Sin carpetas "dev".** `dev3/` → `conversation/`, `dev4/` → `ops/` (nombres que describen la función, no un número de desarrollador). Se actualizaron todas las importaciones de Python, el `Dockerfile`, y las rutas mencionadas en la documentación vigente.
 
 Verificado en ambos casos con un clon completamente nuevo desde GitHub, instalación desde cero y **88/88 pruebas en verde**.
+
+## 14. Q&A oficial del evento y despliegue público
+
+Los organizadores aclararon por separado (no en el PDF ni el README de `alturio/hackmty26`, sino en una ronda de preguntas del evento) varios puntos que cambian la prioridad operativa del proyecto:
+
+| Pregunta | Respuesta oficial | Qué implica para nosotros |
+| --- | --- | --- |
+| ¿El benchmark corre desde la laptop del equipo o por red desde la del juez? | Desde la del juez, contra un **despliegue público real** — de preferencia en Vercel, Render o Railway | Las opciones de red local/túnel de la sección 12 quedan descartadas como plan principal: hace falta un despliegue de verdad, no la laptop del equipo |
+| ¿Corren el benchmark antes o después de la explicación? | **Antes** | El servicio debe estar arriba y probado con anticipación, no algo que se levante mientras se explica la solución |
+| ¿Cuántas llamadas manda el benchmark? | ~100 llamadas | A 100-200 ms por llamada (sección 12), el benchmark completo toma segundos si el servicio ya está "caliente" — el riesgo real es el primer arranque en frío (ver abajo) |
+| ¿Las voces del conjunto oculto son de otros motores de síntesis o el mismo con voces distintas? | **El mismo motor**, voces distintas | Reduce la incertidumbre de "Robustez" (sección 12): el reto no exige generalizar a técnicas de deepfake nunca vistas, solo a hablantes nuevos del mismo motor ya representado en train/val |
+| ¿Qué debe incluir la entrega en Devpost? | Repositorio y la URL del endpoint desplegado | Confirma que el despliegue no es opcional: sin URL pública no hay entrega completa |
+
+### Cómo desplegar (pendiente de que el equipo cree la cuenta y lo ejecute)
+
+No se puede completar esta parte desde aquí: requiere crear una cuenta en la plataforma elegida y conectar el repositorio, algo que le corresponde hacer al equipo. Lo que sí se dejó listo:
+
+- **`Dockerfile` corregido** para respetar el puerto que asigna la plataforma (`$PORT`) en vez de tener el `8000` fijo — sin este cambio, Render/Railway no habrían podido enrutar tráfico al contenedor.
+- **`render.yaml`** en la raíz: un blueprint mínimo (build por Docker, healthcheck en `/health`, `MODEL_VARIANT=baseline`) para que Render detecte la configuración automáticamente al conectar el repo.
+
+**Pasos para el equipo (Render, recomendado por ser el más directo con un `Dockerfile` ya listo):**
+
+1. Crear cuenta en https://render.com (gratis) y conectar la cuenta de GitHub.
+2. "New +" → "Blueprint" → seleccionar este repositorio → Render debería detectar `render.yaml` solo.
+3. Si se prefiere sin blueprint: "New +" → "Web Service" → seleccionar el repo → Runtime "Docker" → Health Check Path `/health`.
+4. Variables de entorno opcionales (`GEMINI_API_KEY`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `DATABASE_URL`, `ADMIN_TOKEN`) se agregan en el dashboard si se quieren activar — ninguna es necesaria para que `/detect` funcione.
+5. Al terminar el build, Render da una URL pública (`https://algo.onrender.com`). Probarla con el script oficial del juez **antes** del evento:
+   ```bash
+   python work/altur_official/check_endpoint.py --url https://algo.onrender.com/detect --manifest /ruta/al/altur-data/manifest.csv --audio-dir /ruta/al/altur-data/audio --split val --n 20
+   ```
+
+**Alternativa: Railway** (https://railway.app) — conectar el repo, Railway detecta el `Dockerfile` solo, no necesita un archivo de blueprint propio.
+
+**Riesgo real y no resuelto: arranque en frío.** Los planes gratuitos de estas plataformas duermen el servicio tras un rato sin tráfico; la primera solicitud después de dormir puede tardar 30-60+ segundos en responder — suficiente para exceder el límite de 30 s **de esa primera llamada** y contar como fallo, aunque las siguientes 99 respondan en 150 ms. Dado que el benchmark corre *antes* de la explicación (según el Q&A), no hay margen para "calentar" el servicio hablando primero. Mitigación recomendada: mandar una solicitud de prueba (`GET /health` o un `/detect` de prueba) un par de minutos antes de que el juez llegue a la mesa, y considerar si vale la pena un plan pago de arranque instantáneo dado el costo.
 
 ---
 
@@ -252,13 +281,13 @@ Los scripts `verify_*` aceptan `--report` para no sobrescribir la evidencia hist
 
 | Pendiente | Por qué sigue abierto |
 | --- | --- |
+| **Desplegar en Render/Railway/Vercel y probar la URL pública** | **Máxima prioridad ahora** (sección 14): el Q&A oficial confirma que el juez corre el benchmark contra un despliegue real, antes de la explicación, y Devpost exige la URL. Requiere que el equipo cree la cuenta — no se puede hacer desde aquí |
 | Reentrenar con `latency_pairing=signed_v2` y promoverlo | Ya se probó (sección 7.6): no supera el umbral de mejora fijado — no es un pendiente técnico, es una decisión ya tomada con evidencia |
 | `422` por audio sin habla podría contar como fallo en el conjunto oculto | Decisión de producto pendiente del equipo (sección 7.8) |
-| Conectividad del endpoint durante los 15 minutos del juez | Requiere decidir laptop/red y ensayar antes del evento (sección 12) |
-| Gemini con cuenta real | Pendiente por decisión expresa del usuario, no de código |
+| Gemini con cuenta real | Pendiente por decisión expresa del equipo, no de código |
 | PostgreSQL/Tiger Data con base real | Sin credenciales disponibles; probado solo con mocks |
-| Docker/Linux | No hay Docker instalado en ningún entorno usado en esta revisión |
-| Despliegue público, HTTPS, dominio | Fuera de alcance, no solicitado |
+| Docker/Linux en un entorno real | No hay Docker instalado en ningún entorno de desarrollo usado; el build real ocurre del lado de la plataforma de despliegue |
+| Arranque en frío del plan gratuito de hosting | Puede exceder el límite de 30 s en la primera llamada si el servicio estaba dormido — mitigar con una solicitud de calentamiento antes del benchmark (sección 14) |
 
 ## Guion de demo (15 minutos con el juez)
 

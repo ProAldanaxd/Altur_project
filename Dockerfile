@@ -11,4 +11,6 @@ COPY models ./models
 RUN mkdir -p /app/data && chown 10001:10001 /app/data
 USER 10001:10001
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--limit-concurrency", "16"]
+# Render/Railway asignan el puerto real vía $PORT; si no está definida (docker
+# run local), usa 8000. Forma shell necesaria para que ${PORT:-8000} se expanda.
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --limit-concurrency 16

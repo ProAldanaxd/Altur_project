@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: altur-hackmty
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: MODEL_VARIANT
+        value: baseline
+    # Gemini/ElevenLabs/DATABASE_URL se agregan manualmente en el dashboard de
+    # Render si se quieren activar; no son necesarias para que /detect funcione.
