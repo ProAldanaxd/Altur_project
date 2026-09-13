@@ -16,7 +16,7 @@ tests/test_temporal.py::test_response_candidates_are_signed_unique_and_belong_to
 which does produce negative latencies on real overlap. Not wired into any
 deployed model yet: it exists so train_validate.py can produce the NEXT
 generation of weights the moment the official dataset is available (see
-REVISION-TECNICA.md for the exact retraining procedure), without touching
+README.md (section 6, hallazgo #6) for the exact retraining procedure), without touching
 today's production behavior at all.
 """
 from ml.features import extract_features_from_turns

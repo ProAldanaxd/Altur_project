@@ -30,7 +30,7 @@ def main():
     parser.add_argument("--out", default="models/model.pkl")
     parser.add_argument("--latency-pairing", choices=("legacy", "signed_v2"), default="legacy",
                         help="'legacy' reproduces the deployed models exactly (latency_frac_negative "
-                             "always 0, see REVISION-TECNICA.md hallazgo #6). 'signed_v2' trains against "
+                             "always 0, see README.md, seccion 6 (hallazgo #6)). 'signed_v2' trains against "
                              "the corrected signed-latency pairing instead; only use this to produce a "
                              "NEW model generation, and re-run the full comparison against 'legacy' on "
                              "val before promoting it, since this changes what the model actually saw "

@@ -78,7 +78,7 @@ class Detector:
         # `confidence si is_synthetic, si no 1-confidence` — es decir, confidence
         # es la confianza en el VEREDICTO devuelto, no P(sintético) cruda.
         # Verificado con el harness oficial: mandar p_synthetic sin ajustar
-        # invierte el AUC (dio 0.442 en val); ver CAMBIOS-Y-VALIDACION.md.
+        # invierte el AUC (dio 0.442 en val); ver README.md (secciones 6 y 9).
         is_synthetic = probability >= 0.5
         confidence = probability if is_synthetic else 1.0 - probability
         return {"is_synthetic": bool(is_synthetic), "p_synthetic": probability, "confidence": confidence}

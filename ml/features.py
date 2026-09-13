@@ -104,7 +104,7 @@ def extract_features_from_turns(turns, duration_s=None, *, latency_pairing="lega
     - "legacy" (default): the exact formula models/model.pkl and
       models/dev2Alfa.pkl were trained against. Only pairs a caller turn
       with an agent turn that has ALREADY ENDED, so `latency_frac_negative`
-      is structurally always 0 (see REVISION-TECNICA.md hallazgo #6) and
+      is structurally always 0 (see README.md, seccion 6 (hallazgo #6)) and
       real overlap is silently excluded from the latency stats rather than
       counted as negative. Kept as the default so nothing calling this
       function without the keyword (app/model.py's Detector, in particular)
@@ -115,7 +115,7 @@ def extract_features_from_turns(turns, duration_s=None, *, latency_pairing="lega
       were trained with "legacy" and must be retrained before this can be
       used in production. train_validate.py accepts --latency-pairing to
       produce that next generation of weights once the official dataset is
-      available; see REVISION-TECNICA.md for the exact procedure.
+      available; see README.md (seccion 6, hallazgo #6) for the exact procedure.
     """
     if latency_pairing not in ("legacy", "signed_v2"):
         raise ValueError("latency_pairing must be 'legacy' or 'signed_v2'")

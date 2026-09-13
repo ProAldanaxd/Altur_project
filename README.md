@@ -1,66 +1,207 @@
-# Altur — Dev 1 + Dev 2 + Dev 3 + Dev 4
+# Altur — Detección de voz sintética en llamadas bancarias (HackMTY26)
 
-Guía vigente del proyecto. Los documentos `DEV1-DEV2-REFERENCIA.md`, `INTEGRACION.md`, `ALFA-REVISION.md`, `DEV3-ENTREGA.md` y `DEV4-ENTREGA.md` describen el estado de cada entrega histórica (con sus propios puertos y comandos de esa época) y se conservan sin modificar como evidencia; para arrancar y operar el proyecto hoy, usa este README. `REVISION-TECNICA.md`, `CAMBIOS-Y-VALIDACION.md` y `BENCHMARK-ANTES-DESPUES.md` documentan la revisión más reciente.
+Documento único: reúne todo el historial del proyecto (encargo, Dev 1-4, revisión técnica, benchmarks, verificación con cuenta real, y el reto oficial de Altur) en orden cronológico. Antes existían 12 documentos separados (`CLAUDE-CODE-ENTREGA.md`, `DEV1-DEV2-REFERENCIA.md`, `INTEGRACION.md`, `ALFA-REVISION.md`, `DEV3-ENTREGA.md`, `DEV4-ENTREGA.md`, `REVISION-TECNICA.md`, `CAMBIOS-Y-VALIDACION.md`, `BENCHMARK-ANTES-DESPUES.md`, `LISTO-PARA-EL-JUEZ.md`, `GUION-DEMO.md` y este mismo README); se fusionaron aquí y se eliminaron para no duplicar información.
 
-Dev 3 temporal está implementado y probado con WAV oficiales. La conexión semántica Gemini está implementada y probada con un proveedor simulado; falta API key/modelo habilitado y prueba real — **pendiente por decisión del usuario**, no se busca ni configura en esta fase. No es un detector semántico validado.
+---
 
-## Nuestro enfoque (para jueces y evaluación)
+## Arranque rápido (estado actual)
 
-El clasificador desplegado (`models/model.pkl`) **no es un clasificador acústico "de librería"** sobre espectro/MFCC/prosodia. Sus 87 características vienen enteramente de la **dinámica de turnos de la conversación**: cuánto dura cada intervención, cuánto tarda el cliente en responder al agente (con signo), cuánto se solapan, cuántos silencios hay, la entropía de esos patrones. Es el enfoque de "comportamiento conversacional" del reto — cómo reacciona quien llama a las interrupciones y silencios del agente, no cómo suena su voz — combinado con un ensemble simple (regresión logística + random forest + gradient boosting), sin deep learning ni espectrogramas.
-
-- **Profundidad antes que bulto:** probamos agregar 26 características temporales adicionales (`conversation/temporal.py`, turnos con latencias firmadas, solapamientos, reinicios) y las **rechazamos con evidencia**: mejora de AUC de solo 0.0015 en CV de 5 folds sobre train, por debajo del umbral de 0.005 fijado *antes* de medir. La misma disciplina se aplicó esta semana con una corrección real al cálculo de latencias (`latency_pairing="signed_v2"`, ver `REVISION-TECNICA.md` hallazgo #6): probada contra el dataset oficial completo, dio el mismo balanced accuracy y solo +0.0008 de AUC — tampoco se promovió a producción. No agregamos señales que no demuestren aportar.
-- **Viable en producción:** sin GPU ni modelo pesado — CPU, ensemble de scikit-learn, 100-150 ms por llamada en promedio (máximo observado 228 ms) medido con `scripts/check_endpoint.py`, el mismo script del juez, muy por debajo del límite de 30 s.
-- **Enfoque semántico, listo pero no forzado:** `conversation/semantics.py` implementa el tercer enfoque del reto (detectar si quien llama inventa respuestas sobre datos que no existen) vía Gemini, probado exhaustivamente con proveedor simulado; nunca afirma que algo "no existe" sin una premisa de prueba explícita. Pendiente solo de credenciales reales, por decisión del equipo — no de código.
-- **Honestos sobre lo que no sabemos:** no hay forma de medir el desempeño real contra el conjunto oculto (voces y personas nuevas) hasta la evaluación en vivo. La única evidencia disponible es sobre las 71 llamadas de validación (hablantes fuera de train): `balanced_accuracy: 0.945`, `auc: 0.980`, verificado con el script oficial del juez, no solo con herramientas propias (ver `CAMBIOS-Y-VALIDACION.md`).
-
-## Qué funciona hoy sin ninguna cuenta externa
-
-- `POST /detect`: clasificación local (baseline o alfa), sin llamar a ningún proveedor.
-- `POST /conversation/analyze` y `POST /conversation/semantic` (sin `include_semantics`): análisis temporal 100% local.
-- Auditoría SQLite local (`/audit/stats`, `/audit/calls`) y panel `/demo`.
-- Todo lo anterior está cubierto por la suite de pruebas (`pytest`), que no requiere red ni credenciales.
-
-## Qué está implementado pero no verificado con una cuenta real
-
-- Gemini (`conversation/semantics.py`): adaptador probado con proveedor simulado (mocks). Pendiente por decisión del usuario.
-- ElevenLabs (`ops/voice.py`): **verificado con cuenta real** (generación de MP3 real exitosa, ver `DEV4-ENTREGA.md`). Requiere `ELEVENLABS_API_KEY`/`ELEVENLABS_VOICE_ID` propios configurados en el entorno para reproducirlo.
-- PostgreSQL/Tiger Data (`ops/postgres.py`): exportación idempotente probada con conexión simulada. Falta `DATABASE_URL` real.
-- Docker/Linux: la imagen está definida (`Dockerfile`, Python 3.12) pero no se ha construido ni probado en este entorno (no hay Docker instalado en la máquina donde se hizo la última revisión).
-
-## Arrancar
-
-Desde la raíz del proyecto:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-python -m pip install -r requirements-lock.txt
+```powershell
+cd "ruta\a\Altur_project"
+.\.venv\Scripts\Activate.ps1
 python -m pytest -q
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8025
 ```
 
-Abrir http://127.0.0.1:8025/docs y http://127.0.0.1:8025/demo. El modelo baseline de Dev 2 es el predeterminado. Alfa sigue seleccionable con `MODEL_VARIANT=alfa` (ver `ALFA-REVISION.md`: alfa no supera a baseline en la comparación disponible y no se recomienda como predeterminado).
+Abrir `http://127.0.0.1:8025/demo` (panel visual) o `http://127.0.0.1:8025/docs` (API interactiva). Si no existe `.venv` todavía:
 
-Para arrancar sin ninguna variable de entorno externa heredada de la terminal (recomendado para reproducir la línea base):
-
-```bash
-env -u GEMINI_API_KEY -u GOOGLE_API_KEY -u GEMINI_MODEL \
-    -u ELEVENLABS_API_KEY -u ELEVENLABS_VOICE_ID -u DATABASE_URL \
-    -u MODEL_PATH \
-    MODEL_VARIANT=baseline AUDIT_DB_PATH=work/audit-test.sqlite3 \
-    python -m uvicorn app.main:app --host 127.0.0.1 --port 8025
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-lock.txt -r requirements-dev.txt
 ```
 
-`.env.example` documenta las variables aceptadas; **la aplicación no carga `.env` automáticamente**, hay que exportarlas en la terminal.
+Para que un juez o un dispositivo en la misma red pueda alcanzar el servidor, usar `--host 0.0.0.0` en vez de `127.0.0.1` (ver sección 12).
 
-## API
+**Contrato de `/detect`** (coincide con el oficial de Altur):
+
+```json
+// Petición
+{"call_id": "opcional", "audio_base64": "<WAV completo en base64>", "sample_rate": 8000, "channels": 2}
+// también acepta {"audio": "..."} como alias de audio_base64
+```
+```json
+// Respuesta
+{"is_synthetic": true, "confidence": 0.87}
+```
+
+WAV estéreo PCM16 de 8 kHz: canal 0 = cliente (a clasificar), canal 1 = agente. `confidence` es la **confianza en el veredicto devuelto** (si `is_synthetic=true`, es P(sintético); si es `false`, es P(humano) = 1 − P(sintético)) — no la probabilidad cruda del modelo sin ajustar (ver sección 7.7, fue un error real que se corrigió). `call_id`/`sample_rate`/`channels` se ignoran de forma segura si se envían (Pydantic descarta campos extra); el formato real del WAV siempre se valida contra el archivo decodificado, nunca contra esos metadatos declarados.
+
+**Últimas cifras verificadas** (71 llamadas de val, con el script oficial del juez): `balanced_accuracy: 0.945`, `auc: 0.980`, `brier: 0.046`, 0 errores, latencia media 100-150 ms (máxima 228 ms, límite del juez: 30 s). Esto es val, no el conjunto oculto de evaluación — ver sección 11.
+
+**Módulos:** `app/` (API y clasificador, Dev 1+2), `ml/` (features y ensemble, Dev 2), `conversation/` (análisis temporal y semántico, Dev 3 — antes `dev3/`), `ops/` (auditoría, demo, voz, Postgres, Dev 4 — antes `dev4/`). Ver sección 12 sobre el renombrado.
+
+---
+
+## 1. El encargo y el reto de Altur
+
+Altur (Tecnologías Altur S.A.P.I. de C.V.) construye agentes de voz con IA que atienden llamadas para bancos de América Latina. El reto de HackMTY26 (*"Defend the Bank Against Voice Deepfakes"*) pide un sistema que detecte si quien llama a un banco es una persona real o una voz sintética, a partir de una llamada grabada entre el cliente y el agente. El material oficial sugiere tres enfoques posibles —no obligatorios—: detección acústica (la voz en sí), comportamiento conversacional (cómo reacciona el cliente a interrupciones y silencios del agente) y semántico (si el cliente inventa respuestas sobre datos que no existen).
+
+El equipo (Dev 1 a Dev 4) recibió el dataset oficial (llamadas grabadas, español, 8 kHz estéreo, canal 0 = cliente/canal 1 = agente) y construyó el sistema en las secciones 2-5. Más adelante, Claude Code recibió el encargo de revisar, depurar y dejar reproducible ese trabajo (sección 6 en adelante), con una condición explícita del usuario: la conexión real con Gemini queda pendiente por decisión propia, sin buscar credenciales para esa fase.
+
+Repositorio oficial del reto: https://github.com/alturio/hackmty26. Dataset oficial: `manifest.csv` + `turns/` (en ese mismo repo) + `audio/` (release `v1.0`, `altur-challenge-audio.zip`, ~640 MB) — no se redistribuye, es exclusivo de HackMTY26.
+
+## 2. Dev 1 + Dev 2 — API y clasificador baseline
+
+Backend en FastAPI. `app/main.py` expone `/health`, `/ready`, `/model`, `/detect`, `/docs`; `app/audio.py` decodifica y valida el WAV (base64 → estéreo PCM16 8kHz, límite de 12 MiB decodificado); `app/limits.py` acota el cuerpo HTTP (~16 MiB) antes de parsear JSON, incluso sin `Content-Length`.
+
+El clasificador (`app/model.py`, `ml/features.py`, `ml/ensemble.py`) **no es un detector acústico/espectral**: extrae 87 características derivadas únicamente de la *dinámica de turnos* de la conversación (duración de intervenciones, latencias de respuesta, solapamientos, silencios, entropía de esos patrones), y las alimenta a un ensemble de voto suave (regresión logística + random forest + gradient boosting). Se entrenó con 282 llamadas de train; las 71 de val nunca entraron al ajuste.
+
+**Hallazgo clave de esta etapa:** entrenar con los turnos "oficiales" del dataset y predecir con turnos detectados por el propio VAD del proyecto genera un desajuste de distribución (comprobado con datos reales):
+
+| Entrenamiento / validación | AUC val | Aciertos |
+| --- | --- | --- |
+| Turnos oficiales / turnos oficiales | 0.9968 | 69/71 |
+| Turnos oficiales / VAD de WAV | 0.9428 | 65/71 |
+| VAD de WAV / VAD de WAV | 0.9801 | 67/71 |
+
+Por eso el modelo entregado se entrenó y evalúa con el mismo VAD que usa la API en producción (última fila), no con los turnos oficiales — mismo preprocesamiento en entrenamiento e inferencia. Resultado: **67/71 (94.37%)** por HTTP, 0 errores, ~47 ms de latencia media / 59 ms p95 (macOS ARM64, Python 3.9.6, medición histórica).
+
+Otras decisiones de esa etapa: `confidence` se omitió del contrato hasta aclarar su semántica con Altur (se resolvió después, sección 7.7); un error nunca produce un veredicto ficticio (se eliminó una ruta previa que devolvía sintético/confidence=0.5 ante cualquier excepción); el VAD sin habla en el canal del cliente devuelve 422; `models/model.pkl` y `models/model.json` guardan el modelo y su procedencia; `models/registry.json` guarda las identidades (hash, versión de sklearn) verificadas al cargar.
+
+## 3. Revisión del modelo Alfa
+
+Un compañero de equipo (Dev 2) entregó una variante alternativa, `models/dev2Alfa.pkl` (SHA-256 `4a187789ecf0b93a16416810d8b8fc86f1351cdd7861114380b2fbb82dae09c1`). Al auditarla (`audit_alfa.py`, `audit-alfa.json`) se encontró evidencia fuerte de que su `scaler` interno se ajustó con estadísticas de las 353 llamadas completas (train+val): su vector de medias coincide, con tolerancia 1e-10, con las features de *todos* los turnos oficiales — no con las extraídas del audio real. Esto hace que su resultado sobre val sea diagnóstico, no una evaluación independiente (marca 71/71 en turnos oficiales, pero ese número no demuestra generalización).
+
+| Variante | Aciertos (WAV real, HTTP) | Humanos→sintético | Sintéticos→humano | Media | p95 |
+| --- | --- | --- | --- | --- | --- |
+| baseline | 67/71 | 3 | 1 | 47.1 ms | 60.0 ms |
+| alfa | 64/71 | 6 | 1 | 47.0 ms | 59.2 ms |
+
+**Decisión:** baseline permanece como predeterminado (`MODEL_VARIANT=baseline`) porque conserva un holdout real y obtuvo mejor resultado con audio real; Alfa queda integrada y seleccionable (`MODEL_VARIANT=alfa`) para comparación, sin representar una mejora comprobada. `models/registry.json` documenta ambas identidades; el registro no debe editarse para aceptar pesos nuevos sin auditarlos primero.
+
+## 4. Dev 3 — análisis temporal y semántico
+
+Módulo `conversation/` (originalmente `dev3/`): `temporal.py` normaliza intervalos de actividad de voz por canal (semiabiertos `[start,end)`), calcula latencias de respuesta **con signo** (negativas si el cliente empieza antes de que el agente termine — solapamiento real), solapamientos, silencios, reinicios tras interrupción, y produce 26 características descriptivas versionadas `temporal-v1`. `semantics.py` conecta con Gemini para transcribir canales por separado o revisar transcripciones dadas, con citas verificadas literalmente contra el texto y escenarios de prueba explícitos (`traps`) para detectar si el cliente inventa respuestas sobre datos ficticios — nunca declara que algo "no existe" sin un escenario de prueba proporcionado.
+
+Rutas nuevas: `GET /conversation/status`, `POST /conversation/analyze` (mismo audio que `/detect`, con `include_semantics` opcional), `POST /conversation/semantic` (turnos transcritos + `traps`). Ninguna de estas 26 características ni la capa semántica afecta el veredicto de `/detect` (`affects_detect: false` siempre).
+
+**Comparación con evidencia:** se compararon las 87 features de Dev 2 contra 113 (87+26) con el mismo ensemble e hiperparámetros, 5 folds estratificados sobre train (semilla 42), sin tocar val. AUC medio: 0.987642 (87) vs. 0.989138 (113) — mejora de solo 0.0015, por debajo del umbral de 0.005 fijado *antes* de medir. **Por eso las 26 features nunca se integraron a producción** — la disciplina de "profundidad antes que bulto" se mantuvo incluso cuando el propio equipo las había construido.
+
+Estado de Gemini en esa etapa: configuración local presente, pero ninguna respuesta real exitosa confirmada (`gemini-2.5-flash` → 404; `gemini-3.8-flash` → 503 y 400 sin causa aislada). `configured` solo verifica variables; `live_verified` seguía en `false`. Pendiente de decisión del equipo, no de código — se retomó y se resolvió del lado de Claude Code en la sección 10, pero solo para ElevenLabs; Gemini sigue sin credenciales por decisión expresa del usuario.
+
+## 5. Dev 4 — auditoría, demo, voz y PostgreSQL
+
+Módulo `ops/` (originalmente `dev4/`): `audit.py` usa SQLite con WAL y una cola acotada de 1024 eventos en segundo plano, registrando identificador, fecha, código HTTP, veredicto, probabilidad interna, latencia, duración e identidad del modelo — nunca audio, transcripciones ni secretos. Si SQLite falla al abrir, `/detect` sigue funcionando y las rutas de auditoría devuelven 503. `demo.html` (ruta `/demo`) es el panel web: sube un WAV, ve el veredicto, los registros y controles de voz. `voice.py` genera una alerta de audio fija vía ElevenLabs (implementado y probado solo con mocks en esa etapa). `postgres.py` exporta de forma explícita e idempotente (por `request_id`) a PostgreSQL/Tiger Data, nunca desde el camino de `/detect`.
+
+Rutas de operador (`/audit/stats`, `/audit/calls`, `/voice/status`, `/voice/alert`): requieren `ADMIN_TOKEN` si está configurado; si no, solo aceptan clientes loopback.
+
+**Evidencia de esa entrega:** 81 pruebas automáticas aprobadas; 71 WAV de val por HTTP con 67 aciertos (3 falsos positivos, 1 falso negativo); latencia media 47.2 ms / p95 59.1 ms; 83 eventos persistidos (79 respuestas 200, 4 errores 422, 0 descartes). Material de presentación: `Pitch-Altur.pptx` (5 diapositivas) con guion de 3 minutos — problema, cómo funciona, resultados (67/71), demo en vivo, cierre — más un recorrido técnico de 15 minutos repartido entre los cuatro devs.
+
+## 6. Entrega a Claude Code
+
+A partir de aquí, el encargo pasó a revisar, depurar, optimizar y dejar reproducible todo lo anterior para el reto — con evidencia medida, no solo recomendaciones. Regla explícita del usuario: la conexión real con Gemini queda fuera de esta fase, sin buscar credenciales. Línea base reproducida primero: **81/81 pruebas** en un entorno nuevo (Windows, Python 3.11.9, mismo `requirements-lock.txt`), confirmando que el estado heredado (macOS ARM64, Python 3.9.6) es reproducible en otra máquina.
+
+El dataset oficial no estaba disponible en ese momento (se buscó y no estaba en la máquina), lo que limitó la primera ronda de revisión a análisis de código y pruebas con WAV sintéticos generados localmente (`work/gen_synth_wav.py`) — nunca usados para afirmar exactitud, solo formato y latencia.
+
+## 7. Revisión técnica: hallazgos y correcciones
+
+Nueve hallazgos confirmados en total; se listan en el orden en que se encontraron.
+
+**1. `verify_dev3_http.py` podía llamar a Gemini real y fallar por eso (Alto, corregido).** El script asumía sin comprobar que el servidor no tenía `GEMINI_API_KEY`; si la tenía, disparaba una llamada real al proveedor y el assert fallaba de forma confusa. Corrección: ahora lee `/conversation/status` primero y omite la verificación explícitamente (`skipped: true`) si detecta Gemini configurado, en vez de contactar al proveedor.
+
+**2. El mismo script sobrescribía evidencia histórica (Medio, corregido).** Escribía siempre en `verification-dev3-http.json`, destruyendo el reporte anterior. Se agregó `--report` (por defecto `verification-dev3-http-new.json`).
+
+**3. `ops/audit.py`: el contador `written` no distinguía inserciones reales de duplicados (Bajo/Medio, corregido + test).** `INSERT OR IGNORE` no lanza excepción ante un `request_id` repetido; el contador se incrementaba igual sin mirar `cursor.rowcount`. Ahora `written` solo cuenta filas realmente insertadas, y se agregó `duplicate_ignored` para que la distinción sea visible en `/audit/stats`. Prueba: `test_audit_write_counter_distinguishes_duplicate_request_id`.
+
+**4. `ops/postgres.py`: conexión SQLite sin cerrar y sin manejo de tabla ausente (Medio, corregido + test).** `with sqlite3.connect(...) as local:` solo controla la transacción en el módulo estándar `sqlite3`, no cierra la conexión; y si `sync_batch()` corre contra una base nunca inicializada, `SELECT * FROM calls` lanzaba `OperationalError` sin capturar. Corrección: `try/finally: local.close()`, y ese error se traduce a `{"status": "unavailable", "reason": "audit_db_not_initialized"}`. Prueba: `test_postgres_sync_on_uninitialized_db_reports_status_not_crash`.
+
+**5. `ops/demo.html`: el refresco periódico podía reactivar "Generar alerta" durante una solicitud en curso (Bajo, corregido).** El `setInterval` de 3 segundos podía reactivar el botón mientras una generación seguía pendiente, permitiendo un doble clic con costo real de crédito en ElevenLabs. Corrección: bandera JS `voiceBusy` que el refresco respeta.
+
+**6. `latency_frac_negative` en las 87 features es estructuralmente siempre 0 (Medio, corrección lista pero no aplicada al modelo desplegado).** La fórmula original solo empareja un turno del cliente con turnos del agente que *ya terminaron* antes de que el cliente empiece, así que la fracción de latencias negativas nunca puede ser mayor que cero — ni siquiera con solapamiento real. No se corrigió directamente porque `models/model.pkl` y `models/dev2Alfa.pkl` se entrenaron exactamente contra esa definición; cambiarla sin reentrenar alimentaría al modelo con una distribución que nunca vio. Se implementó como parámetro opt-in: `extract_features_from_turns(..., latency_pairing="legacy"|"signed_v2")`, con `"legacy"` por defecto (idéntico byte a byte al comportamiento anterior; `Detector` sigue llamando sin este argumento, cero impacto en producción) y `"signed_v2"` con el emparejamiento correcto (misma definición que `conversation/temporal.py`). `train_validate.py` acepta `--latency-pairing` para producir la próxima generación de pesos.
+
+  **Se probó en cuanto el dataset oficial estuvo disponible** (ver sección 8): `python train_validate.py --data-root altur-data --latency-pairing signed_v2 --out models/model_v2_signed_latency.pkl`. Resultado sobre las 71 llamadas de val, mismo protocolo que el modelo real (entrena y evalúa con VAD de audio): accuracy y matriz de confusión **idénticas** al baseline (67/71, `[[34,3],[1,33]]`), ROC-AUC 0.9801 → 0.9809 (+0.0008), Brier 0.0461 → 0.0499 (ligeramente peor). No superó el umbral de 0.005 ya establecido por el equipo — **no se promovió a producción**, igual disciplina que con las 26 features de Dev 3. El artefacto queda en `models/model_v2_signed_latency.pkl`/`.json` como evidencia reproducible, sin tocar el registro.
+
+**7. `confidence` invertía el AUC según el script oficial del juez (Alto, corregido).** Ver sección 9 — se detectó al activar `confidence` por primera vez.
+
+**8. Un `422` por falta de habla del cliente cuenta como respuesta incorrecta en el conjunto oculto (Medio, riesgo confirmado, sin resolver).** El contrato del juez trata cualquier status ≠ 200 como fallo. No ocurrió nunca en las 71 llamadas de val, pero el conjunto oculto tiene voces nuevas donde podría pasar. No se resolvió unilateralmente porque implica una decisión de producto (¿fallar limpio, o arriesgar un veredicto por defecto sin justificación?), no solo de código.
+
+**9. Puertos inconsistentes en la documentación heredada (Bajo, consolidado).** Distintas etapas usaban 8018-8023; se consolidó todo en 8025.
+
+Puntos revisados sin defecto: límite de cuerpo HTTP (probado con 13 y 17 MiB, con y sin `Content-Length`); contrato `audio`/`audio_base64` contradictorios (422 correcto); verificación de modelo/sklearn/columnas/clases al arrancar; cierre de `AuditStore` ante fallo de SQLite; Docker (no se pudo construir, sin Docker instalado en el entorno de revisión).
+
+## 8. El dataset oficial llega, y el fix de latencia se prueba de verdad
+
+El dataset oficial (`manifest.csv` + `turns/` de `alturio/hackmty26`, audio del release `v1.0`) se consiguió durante la revisión. Se verificó su integridad (353 filas: 282 train/71 val, 203 sintéticas/150 humanas; 0 turns o audios faltantes) con `work/check_dataset.py`, y se usó para completar el hallazgo #6 (arriba) y para correr el script oficial del juez (sección 9).
+
+## 9. El contrato oficial se actualiza: `confidence` y el script del juez
+
+Altur publicó en `alturio/hackmty26` el contrato exacto de `/detect` (`call_id`/`audio_base64`/`sample_rate`/`channels` en la petición; `is_synthetic`/`confidence` en la respuesta; 30 s máx. por llamada; cualquier status≠200 o respuesta sin `is_synthetic` booleano cuenta como incorrecta) y dos scripts: `scripts/check_endpoint.py` (el mismo cliente que usa el juez) y `scripts/example_server.py`. Se descargaron a `work/altur_official/`.
+
+**Primera corrida** (servidor sin `confidence`, 71 llamadas de val): `balanced_accuracy: 0.945`, 0 errores, latencia máxima 228 ms — confirma con el harness real del juez lo que ya se sabía (67/71).
+
+Dado que el contrato ya definía el uso de `confidence` (AUC, calibración, desempate), se activó por primera vez enviando `p_synthetic` sin ajustar. Resultado: **`auc: 0.442`, peor que azar**. La causa: `check_endpoint.py` reconstruye `P(sintético)` como `confidence` si `is_synthetic=true`, o `1 - confidence` si es `false` — el contrato espera la **confianza en el veredicto devuelto**, no la probabilidad cruda. Corrección en `app/model.py`: `confidence = p_synthetic si is_synthetic, si no 1 - p_synthetic`. Reevaluado: **`auc: 0.980`, `brier: 0.046`** — coincide exactamente con las métricas internas ya conocidas (`models/model.json`: ROC-AUC 0.9801, Brier 0.0461). El modelo siempre fue así de bueno; el defecto era solo de exposición en la respuesta pública. `balanced_accuracy` nunca cambió (0.945), porque `is_synthetic` no depende de `confidence`. Este error **solo se detectó por probar con el script real del juez** antes de dar por buena la activación — una prueba contra herramientas propias nunca lo habría revelado. Prueba nueva: `test_classification_contract_and_internal_probability` verifica `confidence >= 0.5` y su relación exacta con `p_synthetic` según el veredicto.
+
+## 10. Interfaz de demo mejorada
+
+El panel `/demo` se rediseñó dos veces sobre la marcha:
+
+1. Se agregó una sección de "Análisis temporal" con una línea de tiempo SVG (barras de cliente/agente a escala real, solapamientos resaltados) y las métricas de `conversation/analyze` (turnos, % de habla, % de solapamiento, latencia de respuesta), con las mismas advertencias de no-sobreinterpretación que ya usa la API.
+2. A pedido del usuario, se simplificó: ahora lo primero que se ve es un veredicto grande y claro (🤖/🧑) con solo 4 datos clave (modelo, latencia, duración, % de solapamiento), y el resto de los datos quedan detrás de un botón "Ver más datos".
+
+De paso se encontró y corrigió un bug real: `/demo` leía el HTML sin especificar `encoding="utf-8"`, y en Windows Python usa la codificación local del sistema por defecto — corrompía todos los acentos (`"AuditorÃa"` en vez de `"Auditoría"`). Un problema de compatibilidad multiplataforma preexistente, no introducido por este cambio; corregido en `app/main.py`.
+
+## 11. ElevenLabs: verificación con cuenta real
+
+A diferencia del resto de la revisión, esta parte sí se probó con una cuenta y credenciales reales del equipo (nunca vistas ni manejadas por el asistente; el usuario las configuró en su propia terminal). Resultado final: `POST /voice/alert` devolvió `200` con un MP3 real y válido (ID3 v2.4.0, MPEG layer III, 128 kbps, 44.1 kHz, ~188 KB).
+
+El camino pasó por cuatro causas de error de cuenta distintas, cada una diagnosticada con la razón que ya devolvía `ops/voice.py` (y, cuando hizo falta más detalle, con un `print` de depuración temporal — solo en la terminal del servidor, nunca en la respuesta HTTP, y ya retirado del código):
+
+1. **`401`, `api_key_id_used_as_api_key`** — se usó el *ID* de la key (visible en la tabla del dashboard) en vez de la key secreta real (siempre empieza con `sk_`).
+2. **`401`, `missing_permissions`** — key con formato correcto pero sin el permiso de *Text to Speech* habilitado.
+3. **`401`, `detected_unusual_activity`** — ElevenLabs deshabilitó el Free Tier de la cuenta por actividad "inusual" (su sistema antiabuso); se resolvió solo, sin cambiar nada, después de un rato.
+4. **`402`, `payment_required`/`paid_plan_required`** — cuentas Free Tier no pueden usar voces de la librería pública vía API; se resolvió agregando una voz a "My Voices" y usando ese ID.
+
+En ningún momento hizo falta cambiar `ops/voice.py`: el adaptador ya distinguía y exponía correctamente cada código de estado. El diagnóstico fue enteramente de configuración de cuenta, no de código.
+
+## 12. Revisión final contra el reto oficial y sus criterios de jueces
+
+Se leyó el documento confidencial del reto (`hackmty26-altur-challenge.pdf`, Tecnologías Altur S.A.P.I. de C.V., agosto 2026 — no se sube al repo por ser público y el PDF estar marcado confidencial) y se comparó todo el proyecto contra los **criterios de jueces publicados**: Robustez, Originalidad, Profundidad técnica, Viabilidad y Latencia.
+
+- **Robustez:** lo único medible es val (0.945 balanced accuracy); el desempeño en el conjunto oculto (voces y personas nuevas) es desconocido hasta la evaluación en vivo — así se debe presentar, no como garantía.
+- **Originalidad:** punto fuerte no explicitado hasta esta revisión — el modelo usa señales de comportamiento conversacional, no un clasificador acústico convencional (ver sección 2).
+- **Profundidad técnica:** dos experimentos rechazados con evidencia y un umbral fijado antes de medir (26 features de Dev 3, y `latency_pairing=signed_v2`), más un error real de semántica (`confidence`) detectado y corregido con el script oficial del juez, no con herramientas propias.
+- **Viabilidad:** CPU únicamente, sin modelo pesado, formato de entrada igual al telefónico real.
+- **Latencia:** 100-200 ms por llamada medido con el script del juez, muy por debajo del límite de 30 s.
+
+**Lo que el PDF reveló y no estaba resuelto:** los jueces visitan la mesa del equipo 15 minutos y corren su benchmark en vivo contra el endpoint — **debe ser alcanzable durante ese lapso**, algo que ningún documento anterior había resuelto. Se verificó que `--host 0.0.0.0` funciona sin cambios de código (responde igual desde la IP de red local que desde `127.0.0.1`). Dos opciones para el día del evento, ninguna decidida todavía:
+
+- **Red local:** `python -m uvicorn app.main:app --host 0.0.0.0 --port 8025`, dar al juez `http://<IP-local>:8025/detect`. Riesgo: algunas redes de evento aíslan dispositivos entre sí.
+- **Túnel público (recomendado, más confiable):** `ngrok http 8025` (no instalado en ningún entorno usado hasta ahora) da una URL pública que funciona sin importar la red. Requiere instalarlo y ensayarlo *antes* del día del evento.
+
+Esta decisión —qué laptop corre el servidor y cómo se expone— **queda pendiente del equipo**; no es algo que se pueda resolver de antemano sin probarlo en las condiciones reales del venue.
+
+## 13. Reorganización del repositorio
+
+Dos limpiezas estructurales, ambas a pedido explícito del usuario:
+
+1. **Promoción a la raíz.** El trabajo vivía en una carpeta `integracion-final/` (para no tocar el esqueleto original del equipo mientras se revisaba en una rama). Se movió todo el contenido a la raíz del repositorio, reemplazando `core/`, `services/`, `utils/`, `main.py` y `requirements.txt` (stubs vacíos del esqueleto original) y eliminando `dev1/` (la entrega individual de un compañero, ya cubierta por la integración completa). Nada se perdió: sigue disponible en el historial de git.
+2. **Sin carpetas "dev".** `dev3/` → `conversation/`, `dev4/` → `ops/` (nombres que describen la función, no un número de desarrollador). Se actualizaron todas las importaciones de Python, el `Dockerfile`, y las rutas mencionadas en la documentación vigente.
+
+Verificado en ambos casos con un clon completamente nuevo desde GitHub, instalación desde cero y **88/88 pruebas en verde**.
+
+---
+
+## Referencia técnica
+
+### Rutas de la API
 
 | Ruta | Método | Entrada | Resultado |
 | --- | --- | --- | --- |
 | `/health` | GET | — | Proceso vivo |
 | `/ready` | GET | — | 200 solo si el modelo cargó, verificó identidad/versión/columnas/clases y pasó una predicción numérica de prueba |
 | `/model` | GET | — | Variante, SHA-256, número de features, origen del entrenamiento, si conservó holdout |
-| `/detect` | POST | WAV base64 en `audio` o `audio_base64` | `{"is_synthetic": true|false}` |
+| `/detect` | POST | WAV base64 en `audio`/`audio_base64` (+ `call_id`/`sample_rate`/`channels` opcionales, ignorados) | `{"is_synthetic": bool, "confidence": float}` |
 | `/conversation/status` | GET | — | Disponibilidad temporal y estado de configuración Gemini |
 | `/conversation/analyze` | POST | Igual que `/detect`, más `include_semantics` opcional | Turnos, silencios, solapamientos, latencias con signo, 26 features, `affects_detect: false` |
 | `/conversation/semantic` | POST | `turns` transcritos y `traps` opcionales | Reacciones con citas e índices verificados |
@@ -68,112 +209,64 @@ env -u GEMINI_API_KEY -u GOOGLE_API_KEY -u GEMINI_MODEL \
 | `/voice/status`, `/voice/alert` | GET/POST | — | Requiere token de operador o loopback |
 | `/demo` | GET | — | Panel HTML de la demo |
 
-### Entrada de `/detect`
+Errores: `422` (WAV inválido, formato incorrecto, sin habla detectable en el canal del cliente, o `audio`/`audio_base64` contradictorios — ver hallazgo #8 sobre el riesgo de esto en el conjunto oculto), `413` (cuerpo excede ~16 MiB), `503` (falta el modelo, o auditoría no disponible — `/detect` sigue funcionando aunque falle la auditoría). Un error nunca produce un veredicto ficticio.
 
-```json
-{"audio": "BASE64_DEL_WAV_COMPLETO"}
-```
-
-WAV estéreo PCM16 de 8 kHz: canal 0 cliente, canal 1 agente. No se remuestrea ni recorta silencios. `audio` y `audio_base64` son alias del mismo campo; si se envían ambos deben coincidir byte a byte o la solicitud se rechaza con 422.
-
-### Respuesta
-
-```json
-{"is_synthetic": true, "confidence": 0.89}
-```
-
-`confidence` (0.0–1.0) es la **confianza en el veredicto devuelto** — no la probabilidad cruda de que sea sintético: si `is_synthetic=true`, es `P(sintético)`; si `is_synthetic=false`, es `P(humano) = 1 - P(sintético)`. Así lo espera el contrato oficial de Altur (`scripts/check_endpoint.py` del juez reconstruye `P(sintético)` con esa misma fórmula). El umbral interno es 0.5 sobre la probabilidad cruda del modelo, que **no es una garantía de fraude**.
-
-### Errores
-
-| Código | Causa |
-| --- | --- |
-| 422 | WAV inválido, formato incorrecto, canal/tasa de muestreo distinta a la esperada, sin habla detectable en el canal del cliente, o `audio`/`audio_base64` contradictorios |
-| 413 | Cuerpo de la solicitud excede el límite (≈16 MiB antes de decodificar JSON, 12 MiB de WAV ya decodificado) |
-| 503 | Falta el modelo o la auditoría no está disponible (para las rutas de auditoría; `/detect` sigue funcionando aunque falle la auditoría) |
-
-Un error nunca produce un veredicto ficticio: no hay una ruta que devuelva `is_synthetic`/`confidence` por defecto ante una excepción.
-
-### Ejemplo completo (Python)
+### Ejemplo (Python)
 
 ```python
-import base64, json, pathlib, httpx
+import base64, httpx
 
-wav_bytes = pathlib.Path("work/synth_wav/normal_30s.wav").read_bytes()  # o un WAV propio
+wav_bytes = open("llamada.wav", "rb").read()
 payload = {"audio": base64.b64encode(wav_bytes).decode()}
 response = httpx.post("http://127.0.0.1:8025/detect", json=payload, timeout=30)
 print(response.status_code, response.json())
 # 200 {'is_synthetic': False, 'confidence': 0.94}
 ```
 
-`work/gen_synth_wav.py` genera WAV sintéticos (senoides, no habla real) útiles para probar el formato del endpoint sin el dataset oficial; nunca deben usarse para afirmar exactitud de detección.
+`work/gen_synth_wav.py` genera WAV sintéticos (senoides, no habla real) para probar el formato sin el dataset oficial — nunca para afirmar exactitud.
 
-### Análisis de una llamada (Dev 3)
-
-```bash
-python -c 'import base64,json,pathlib; print(json.dumps({"audio":base64.b64encode(pathlib.Path("llamada.wav").read_bytes()).decode()}))' > work/call.json
-curl -s http://127.0.0.1:8025/conversation/analyze -H 'Content-Type: application/json' --data-binary @work/call.json
-```
-
-Respuesta: `temporal` (resumen y eventos), `features` (26 valores), `semantic` (`not_requested` por defecto), `transcription` y `affects_detect: false`.
-
-### Gemini opcional (pendiente por decisión del usuario)
-
-Configurar en el entorno del servidor `GEMINI_API_KEY` (o `GOOGLE_API_KEY`) y `GEMINI_MODEL` con un modelo disponible en la cuenta con entrada de audio y salida JSON estructurada. Sin key o modelo, `/conversation/analyze?include_semantics=true` devuelve `unavailable/missing_api_key` sin contactar al proveedor. Ejemplo ficticio de `/conversation/semantic` (sin llamar a ningún proveedor, la transcripción ya viene dada):
-
-```bash
-curl -s http://127.0.0.1:8025/conversation/semantic -H 'Content-Type: application/json' --data-binary @examples/semantic_request.json
-```
-
-## Verificación y evaluación
+### Verificación
 
 ```bash
 python -m pytest -q
 python verify_real_http.py --data-root /ruta/al/altur-data --url http://127.0.0.1:8025 --report verification-new-http.json
 python verify_dev3_http.py --data-root /ruta/al/altur-data --url http://127.0.0.1:8025
+python work/altur_official/check_endpoint.py --url http://127.0.0.1:8025/detect --manifest /ruta/al/altur-data/manifest.csv --audio-dir /ruta/al/altur-data/audio --split val --n 0
 ```
 
-El dataset debe contener `manifest.csv`, `turns/` y `audio/`; no se incluye en este paquete (ver https://github.com/alturio/hackmty26 y sus Releases). `verify_real_http.py` y `verify_dev3_http.py` aceptan `--report` para no sobrescribir la evidencia histórica (`verification-*.json` ya presentes en la raíz).
+Los scripts `verify_*` aceptan `--report` para no sobrescribir la evidencia histórica (`verification-*.json` en la raíz). `check_endpoint.py` es el script oficial del juez (`work/altur_official/`, bajado de `alturio/hackmty26` — volver a bajarlo si Altur lo actualiza).
 
-Sin dataset, `work/bench_detect.py` mide latencia y robustez con WAV sintéticos (ver `BENCHMARK-ANTES-DESPUES.md`).
+### Variables de entorno
 
-### Verificación con el script oficial del juez
+`MODEL_VARIANT` (`baseline`/`alfa`), `MODEL_PATH`, `AUDIT_DB_PATH`, `ADMIN_TOKEN`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`, `GEMINI_MODEL`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL_ID`, `DATABASE_URL`. Ninguna es obligatoria salvo para la integración correspondiente. Ver `.env.example`. **La aplicación no carga `.env` automáticamente** — hay que exportar las variables en la terminal antes de arrancar.
 
-Altur publicó `scripts/check_endpoint.py` en `alturio/hackmty26` — el mismo cliente HTTP que usa el juez para evaluar, no una aproximación nuestra. Una copia queda en `work/altur_official/` para referencia (bajarla de nuevo por si Altur la actualiza):
+### Límites
 
-```bash
-python work/altur_official/check_endpoint.py \
-  --url http://127.0.0.1:8025/detect \
-  --manifest /ruta/al/altur-data/manifest.csv \
-  --audio-dir /ruta/al/altur-data/audio \
-  --split val --n 0 --out work/altur_official/check_endpoint_result.json
-```
+- Cuerpo HTTP ≈16 MiB antes de parsear JSON (con y sin `Content-Length`); WAV decodificado 12 MiB; llamadas de 1-4 min y ~5 MB de cuerpo (contrato oficial) caben con margen.
+- `/conversation/semantic`: hasta 512 KiB de cuerpo, 400 turnos, 60000 caracteres de texto.
+- Proveedores externos: máx. 2 solicitudes simultáneas a Gemini, 1 a ElevenLabs; timeouts 20-30 s sin reintentos. Ninguno agrega latencia al camino de `/detect`.
+- Docker: `docker build -t altur-hackmty .` — **no probado** (sin Docker en ningún entorno usado). Imagen en Python 3.12; las pruebas locales fueron en 3.11.9 (esta revisión) y 3.9.6 (histórico).
+- Concurrencia: el acceso al modelo está serializado con un `Lock` (thread-safety de scikit-learn); throughput se estanca en ~16-18 req/s bajo carga concurrente independientemente del número de hilos — candidato de optimización futura, no resuelto porque requeriría confirmar primero que los tres estimadores del ensemble son seguros para invocación concurrente.
 
-Última corrida sobre las 71 llamadas de val: `balanced_accuracy: 0.945`, `auc: 0.980`, `brier: 0.046`, 0 errores, latencia máxima 131 ms (límite del juez: 30 s). Ver `CAMBIOS-Y-VALIDACION.md` para el detalle completo, incluyendo un error de semántica en `confidence` que este mismo script detectó y que ya está corregido.
+## Pendientes reales (sin inflar)
 
-## Comparación de modelos
+| Pendiente | Por qué sigue abierto |
+| --- | --- |
+| Reentrenar con `latency_pairing=signed_v2` y promoverlo | Ya se probó (sección 7.6): no supera el umbral de mejora fijado — no es un pendiente técnico, es una decisión ya tomada con evidencia |
+| `422` por audio sin habla podría contar como fallo en el conjunto oculto | Decisión de producto pendiente del equipo (sección 7.8) |
+| Conectividad del endpoint durante los 15 minutos del juez | Requiere decidir laptop/red y ensayar antes del evento (sección 12) |
+| Gemini con cuenta real | Pendiente por decisión expresa del usuario, no de código |
+| PostgreSQL/Tiger Data con base real | Sin credenciales disponibles; probado solo con mocks |
+| Docker/Linux | No hay Docker instalado en ningún entorno usado en esta revisión |
+| Despliegue público, HTTPS, dominio | Fuera de alcance, no solicitado |
 
-| Modelo | Aciertos históricos en 71 llamadas val (HTTP) | Predeterminado |
-| --- | --- | --- |
-| baseline (`models/model.pkl`) | 67/71 (94.4%) | Sí — conserva validación separada |
-| alfa (`models/dev2Alfa.pkl`) | 64/71 (90.1%) | No — evidencia de scaler ajustado con train+val, ver `ALFA-REVISION.md` |
+## Guion de demo (15 minutos con el juez)
 
-Estas cifras son históricas (macOS ARM64, Python 3.9.6); no se repitieron en esta revisión por falta del dataset. `models/registry.json` y `models/model.json` documentan hash, versión de scikit-learn y procedencia de cada variante.
+1. **Problema y enfoque (originalidad):** "Nuestro modelo no analiza cómo suena la voz — analiza cómo se comporta la conversación: turnos, silencios, latencias de respuesta con signo, solapamientos."
+2. **Disciplina técnica (profundidad):** "Probamos agregar más señales dos veces y las rechazamos ambas veces con un umbral fijado antes de medir, porque no mejoraban lo suficiente."
+3. **Demo en vivo:** subir un WAV en `/demo`, mostrar el veredicto y los datos clave; con "Ver más datos", mostrar la línea de tiempo de solapamientos/silencios.
+4. **Latencia:** "100-200 ms por llamada, medido con su propio script de verificación, no el nuestro."
+5. **Viabilidad:** "Corre en CPU, sin modelo pesado — así lo correría un banco de verdad."
+6. **Honestidad (refuerza credibilidad):** "Esto es val, no su conjunto oculto — no sabemos cómo nos va a ir ahí, y no vamos a prometer un número que no hemos medido."
 
-## Límites y despliegue
-
-- Cuerpo HTTP: ≈16 MiB antes de parsear JSON, aplicado con y sin `Content-Length`. WAV decodificado: 12 MiB.
-- `/conversation/semantic`: hasta 512 KiB de cuerpo, 400 turnos, 60000 caracteres de texto total.
-- Proveedores externos: máximo 2 solicitudes simultáneas a Gemini, 1 a ElevenLabs; timeouts de 20-30 s sin reintentos automáticos. Ninguno de los tres agrega latencia al camino de `/detect`.
-- Docker: `docker build -t altur-hackmty .` y `docker run -p 8000:8000 -e MODEL_VARIANT=baseline altur-hackmty` — **no probado en este entorno** (sin Docker instalado). La imagen usa Python 3.12 mientras que las pruebas locales de esta revisión usaron Python 3.11.9 y las históricas Python 3.9.6; verificar antes de depender de ella para el benchmark oculto.
-- Nube, HTTPS, dominio y validación de Gemini/PostgreSQL reales: pendientes, fuera de alcance de esta revisión (ElevenLabs ya se verificó, ver arriba).
-
-## Variables de entorno
-
-`MODEL_VARIANT`, `MODEL_PATH`, `AUDIT_DB_PATH`, `ADMIN_TOKEN`, `GEMINI_API_KEY`/`GOOGLE_API_KEY`, `GEMINI_MODEL`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL_ID`, `DATABASE_URL`. Ninguna es obligatoria salvo para la integración correspondiente. Ver `.env.example`.
-
-## Documentos de esta entrega
-
-- `REVISION-TECNICA.md`: hallazgos confirmados, severidad, causa y evidencia.
-- `CAMBIOS-Y-VALIDACION.md`: qué se corrigió, qué pruebas nuevas se agregaron y sus resultados.
-- `BENCHMARK-ANTES-DESPUES.md`: metodología y resultados de latencia, con lo que no se pudo medir explícito.
+Contingencias: si falla ElevenLabs/Gemini/Postgres en vivo, mostrar el estado real vía `/voice/status` / `/conversation/status` y explicar la razón exacta — nunca presentar un reporte guardado como si fuera ejecución en vivo. Si el servidor no responde, reiniciarlo con el comando de arranque rápido de arriba.
