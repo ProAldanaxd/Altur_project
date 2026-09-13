@@ -46,6 +46,7 @@ ul.notes li{margin:4px 0}
 
   <div id="verdictCard" hidden>
     <div id="result" role="status" class="badge"></div>
+    <audio id="callAudio" controls></audio>
     <div class="metrics keyparams" id="keyParams"></div>
     <p id="detail"></p>
     <button class="secondary" id="toggleTemporal">Ver más datos</button>
@@ -87,7 +88,7 @@ ul.notes li{margin:4px 0}
 
 <script>
 const el=id=>document.getElementById(id);
-let audioURL,voiceBusy=false,lastTemporal=null;
+let audioURL,voiceBusy=false,lastTemporal=null,callAudioURL=null;
 
 function headers(){const token=el('token').value;return token?{'Authorization':'Bearer '+token}:{}}
 
@@ -188,6 +189,9 @@ el('detect').onclick=async()=>{
   el('verdictCard').hidden=true;
   el('temporal').hidden=true;
   el('toggleTemporal').textContent='Ver más datos';
+  if(callAudioURL)URL.revokeObjectURL(callAudioURL);
+  callAudioURL=URL.createObjectURL(f);
+  el('callAudio').src=callAudioURL;
   try{
     const data=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result.split(',')[1]);r.onerror=reject;r.readAsDataURL(f)});
     const start=performance.now();
