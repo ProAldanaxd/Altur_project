@@ -1,5 +1,7 @@
 # Altur — Detección de voz sintética en llamadas bancarias (HackMTY26)
 
+https://github.com/alturio/hackmty26
+
 Documento único: reúne todo el historial del proyecto (encargo, Dev 1-4, revisión técnica, benchmarks, verificación con cuenta real, y el reto oficial de Altur) en orden cronológico. Antes existían 12 documentos separados (`CLAUDE-CODE-ENTREGA.md`, `DEV1-DEV2-REFERENCIA.md`, `INTEGRACION.md`, `ALFA-REVISION.md`, `DEV3-ENTREGA.md`, `DEV4-ENTREGA.md`, `REVISION-TECNICA.md`, `CAMBIOS-Y-VALIDACION.md`, `BENCHMARK-ANTES-DESPUES.md`, `LISTO-PARA-EL-JUEZ.md`, `GUION-DEMO.md` y este mismo README); se fusionaron aquí y se eliminaron para no duplicar información.
 
 ---
